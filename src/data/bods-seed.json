@@ -1,0 +1,1297 @@
+{
+  "version": "1.0.0",
+  "standard": "BODS v0.4",
+  "synthetic": true,
+  "generatedAt": "2026-10-12T00:00:00Z",
+  "jurisdictionRules": [
+    {
+      "code": "EU",
+      "name": "European Union (Luxembourg)",
+      "uboThreshold": 25,
+      "comparison": "strictly_greater",
+      "regulationName": "EU Anti-Money Laundering Directive (EU) 2015/849",
+      "verified": false
+    },
+    {
+      "code": "UK",
+      "name": "United Kingdom",
+      "uboThreshold": 25,
+      "comparison": "strictly_greater",
+      "regulationName": "Money Laundering Regulations 2017",
+      "verified": false
+    },
+    {
+      "code": "US",
+      "name": "United States",
+      "uboThreshold": 25,
+      "comparison": "greater_or_equal",
+      "regulationName": "FinCEN Customer Due Diligence Rule, 31 CFR 1010.230",
+      "verified": false
+    },
+    {
+      "code": "SG",
+      "name": "Singapore",
+      "uboThreshold": 25,
+      "comparison": "strictly_greater",
+      "regulationName": "MAS Notice 626",
+      "verified": false
+    },
+    {
+      "code": "IN",
+      "name": "India",
+      "uboThreshold": 10,
+      "comparison": "strictly_greater",
+      "regulationName": "Prevention of Money-laundering (Maintenance of Records) Rules, 2005",
+      "verified": false
+    }
+  ],
+  "groups": [
+    {
+      "id": "grp-01-aurelia",
+      "name": "Aurelia Maritime Logistics Ltd",
+      "rootEntityId": "ent-g1-root",
+      "rootJurisdiction": "UK",
+      "rootFlag": "🇬🇧",
+      "description": "Multi-layered maritime chartering group across London, Luxembourg, Singapore, and BVI with indirect foreign PEP control through three intermediate companies.",
+      "scenarioSummary": "Hidden PEP through layering: Foreign PEP holds no direct stake in the UK root, but holdings through three intermediate companies (Luxembourg, Singapore, BVI) multiply to 28.7% effective ownership.",
+      "iconName": "shield",
+      "accentColor": "amber",
+      "riskTier": "HIGH RISK",
+      "riskTone": "amber",
+      "traits": ["pep", "cross_border"],
+      "synthetic": true,
+      "entities": [
+        {
+          "id": "ent-g1-root",
+          "name": "Aurelia Maritime Logistics Ltd",
+          "displayLines": ["Aurelia Maritime", "Logistics Ltd"],
+          "entityType": "company",
+          "jurisdictionCode": "UK",
+          "countryFlag": "🇬🇧",
+          "registrationId": "UK-CH-10948211",
+          "status": "active",
+          "registeredAddress": "42 Bishopsgate, Floor 14, London EC2N 4AH, United Kingdom",
+          "source": "UK Companies House PSC Register",
+          "asOfDate": "2026-09-18"
+        },
+        {
+          "id": "ent-g1-lux",
+          "name": "Vespera Euro Holdings S.A.",
+          "displayLines": ["Vespera Euro", "Holdings S.A."],
+          "entityType": "company",
+          "jurisdictionCode": "EU",
+          "countryFlag": "🇱🇺",
+          "registrationId": "LU-RCS-B249103",
+          "status": "active",
+          "registeredAddress": "18 Boulevard Royal, L-2449 Luxembourg",
+          "source": "Luxembourg Registre de Commerce et des Sociétés (RCS)",
+          "asOfDate": "2026-09-12"
+        },
+        {
+          "id": "ent-g1-sg",
+          "name": "Meridian Strait Ventures Pte. Ltd.",
+          "displayLines": ["Meridian Strait", "Ventures Pte. Ltd."],
+          "entityType": "company",
+          "jurisdictionCode": "SG",
+          "countryFlag": "🇸🇬",
+          "registrationId": "SG-UEN-201938471K",
+          "status": "active",
+          "registeredAddress": "10 Marina Boulevard, #29-04 Marina Bay Financial Centre, Singapore 018983",
+          "source": "ACRA BizFile+ Corporate Profile",
+          "asOfDate": "2026-09-14"
+        },
+        {
+          "id": "ent-g1-bvi",
+          "name": "Solstice Crest International Corp.",
+          "displayLines": ["Solstice Crest", "Int'l Corp."],
+          "entityType": "company",
+          "jurisdictionCode": "BVI",
+          "countryFlag": "🇻🇬",
+          "registrationId": "VG-BVICN-1940281",
+          "status": "active",
+          "registeredAddress": "Craigmuir Chambers, Road Town, Tortola VG1110, British Virgin Islands",
+          "source": "BVI FSC Registered Agent Attestation",
+          "asOfDate": "2026-08-29"
+        }
+      ],
+      "persons": [
+        {
+          "id": "per-g1-pep",
+          "name": "Dr. Kaelen Vance-Morozov",
+          "initials": "KV",
+          "nationality": "Foreign Jurisdiction",
+          "flag": "🌐",
+          "yearOfBirth": 1968,
+          "pepStatus": "foreign",
+          "pepRoleDescription": "Former Deputy Minister of Maritime Transport & Port Infrastructure (Fictional)",
+          "synthetic": true
+        },
+        {
+          "id": "per-g1-exec",
+          "name": "Eleanor Thorne-Finch",
+          "initials": "ET",
+          "nationality": "United Kingdom",
+          "flag": "🇬🇧",
+          "yearOfBirth": 1979,
+          "pepStatus": "none",
+          "pepRoleDescription": "Managing Director & UK Resident Shareholder (Fictional)",
+          "synthetic": true
+        },
+        {
+          "id": "per-g1-min",
+          "name": "Tariq Al-Mansoor",
+          "initials": "TA",
+          "nationality": "United Arab Emirates",
+          "flag": "🇦🇪",
+          "yearOfBirth": 1974,
+          "pepStatus": "none",
+          "pepRoleDescription": "Passive Co-Investor in Vespera Euro Holdings (Fictional)",
+          "synthetic": true
+        }
+      ],
+      "unspecifiedOwners": [],
+      "relationships": [
+        {
+          "id": "rel-g1-1",
+          "subjectId": "ent-g1-root",
+          "interestedPartyId": "ent-g1-lux",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 45 },
+              "directOrIndirect": "direct",
+              "source": "UK Companies House Confirmation Statement CS01",
+              "asOfDate": "2026-09-18",
+              "confidence": 0.99
+            }
+          ]
+        },
+        {
+          "id": "rel-g1-2",
+          "subjectId": "ent-g1-root",
+          "interestedPartyId": "ent-g1-sg",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 35 },
+              "directOrIndirect": "direct",
+              "source": "UK Companies House Confirmation Statement CS01",
+              "asOfDate": "2026-09-18",
+              "confidence": 0.99
+            }
+          ]
+        },
+        {
+          "id": "rel-g1-3",
+          "subjectId": "ent-g1-root",
+          "interestedPartyId": "per-g1-exec",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 20 },
+              "directOrIndirect": "direct",
+              "source": "UK Companies House PSC Register",
+              "asOfDate": "2026-09-18",
+              "confidence": 1.0
+            }
+          ]
+        },
+        {
+          "id": "rel-g1-4",
+          "subjectId": "ent-g1-lux",
+          "interestedPartyId": "ent-g1-bvi",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 60 },
+              "directOrIndirect": "direct",
+              "source": "Luxembourg RCS Annual Filing",
+              "asOfDate": "2026-09-12",
+              "confidence": 0.96
+            }
+          ]
+        },
+        {
+          "id": "rel-g1-5",
+          "subjectId": "ent-g1-lux",
+          "interestedPartyId": "per-g1-min",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 40 },
+              "directOrIndirect": "direct",
+              "source": "Luxembourg RBE Declaration",
+              "asOfDate": "2026-09-12",
+              "confidence": 0.98
+            }
+          ]
+        },
+        {
+          "id": "rel-g1-6",
+          "subjectId": "ent-g1-sg",
+          "interestedPartyId": "ent-g1-bvi",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 40 },
+              "directOrIndirect": "direct",
+              "source": "ACRA Register of Members",
+              "asOfDate": "2026-09-14",
+              "confidence": 0.95
+            }
+          ]
+        },
+        {
+          "id": "rel-g1-7",
+          "subjectId": "ent-g1-bvi",
+          "interestedPartyId": "per-g1-pep",
+          "interestedPartyType": "person",
+          "isHot": true,
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 70 },
+              "directOrIndirect": "direct",
+              "source": "BVI Register of Beneficial Ownership (BOSSs)",
+              "asOfDate": "2026-08-29",
+              "confidence": 0.91
+            }
+          ]
+        }
+      ],
+      "monitoringEventTemplates": [
+        {
+          "id": "evt-g1-tpl-1-sanctions-slot",
+          "groupId": "grp-01-aurelia",
+          "changeType": "NEW_RELATIONSHIP",
+          "description": "Designated Russian shipping company Sovcomflot acquires a 9.0% direct shareholding in Meridian Strait Ventures Pte. Ltd.",
+          "source": "ACRA Return of Allotment of Shares (Live Feed)",
+          "confidence": 0.96,
+          "expectedMaterialityHint": "CRITICAL",
+          "data": {
+            "changeType": "NEW_RELATIONSHIP",
+            "newEntity": {
+              "id": "ent-g1-sovcomflot",
+              "name": "Sovcomflot",
+              "displayLines": ["Sovcomflot", "(Designated)"],
+              "entityType": "company",
+              "jurisdictionCode": "RU",
+              "countryFlag": "🇷🇺",
+              "registrationId": "NK-VDEKGF5ZgHAkye4kGuUXs3",
+              "status": "sanctioned",
+              "registeredAddress": "6 Gasheka Street, Moscow 125047, Russian Federation",
+              "source": "OpenSanctions (NK-VDEKGF5ZgHAkye4kGuUXs3) · Designated by US (OFAC), UK, EU, AU",
+              "asOfDate": "2026-10-12",
+              "sanctionsProgramme": "Russia-related sanctions, designated by the US (OFAC), the UK, the EU and Australia",
+              "openSanctionsId": "NK-VDEKGF5ZgHAkye4kGuUXs3",
+              "aliases": [
+                "JSC Sovcomflot",
+                "PAO Sovcomflot",
+                "Joint Stock Company Sovcomflot",
+                "ПАО Совкомфлот"
+              ]
+            },
+            "relationship": {
+              "id": "rel-g1-evt-sanctions",
+              "subjectId": "ent-g1-sg",
+              "interestedPartyId": "ent-g1-sovcomflot",
+              "interestedPartyType": "entity",
+              "isHot": true,
+              "interests": [
+                {
+                  "type": "shareholding",
+                  "share": { "kind": "exact", "value": 9 },
+                  "directOrIndirect": "direct",
+                  "source": "ACRA Return of Allotment of Shares",
+                  "asOfDate": "2026-10-12",
+                  "confidence": 0.96
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "evt-g1-tpl-2-pep-rise",
+          "groupId": "grp-01-aurelia",
+          "changeType": "SHARE_CHANGE",
+          "description": "Foreign PEP Dr. Kaelen Vance-Morozov increases stake in Solstice Crest International Corp. from 70% to 90%, raising effective root ownership from 28.7% to 36.9%.",
+          "source": "BVI BOSSs Registry Update Notice",
+          "confidence": 0.94,
+          "expectedMaterialityHint": "MATERIAL",
+          "data": {
+            "changeType": "SHARE_CHANGE",
+            "relationshipId": "rel-g1-7",
+            "beforeShare": { "kind": "exact", "value": 70 },
+            "afterShare": { "kind": "exact", "value": 90 }
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp-02-cairn",
+      "name": "Cairnstone Precision Holdings Ltd",
+      "rootEntityId": "ent-g2-root",
+      "rootJurisdiction": "UK",
+      "rootFlag": "🇬🇧",
+      "description": "UK industrial holdings group whose intermediate registries report ownership solely in statutory percentage bands (25–50%, 50–75%).",
+      "scenarioSummary": "Banded-percentage problem: Statutory PSC band disclosures produce one DEFINITE UBO (26.0–45.0%), one POSSIBLE UBO straddling 25% (15.0–37.5%), and one person BELOW (6.3–15.0%).",
+      "iconName": "layers",
+      "accentColor": "primary",
+      "riskTier": "REVIEW REQUIRED",
+      "riskTone": "amber",
+      "traits": ["banded", "cross_border"],
+      "synthetic": true,
+      "entities": [
+        {
+          "id": "ent-g2-root",
+          "name": "Cairnstone Precision Holdings Ltd",
+          "displayLines": ["Cairnstone Precision", "Holdings Ltd"],
+          "entityType": "company",
+          "jurisdictionCode": "UK",
+          "countryFlag": "🇬🇧",
+          "registrationId": "UK-CH-08841209",
+          "status": "active",
+          "registeredAddress": "19 St Vincent Place, Glasgow G1 2DT, United Kingdom",
+          "source": "UK Companies House PSC Banded Filing",
+          "asOfDate": "2026-09-21"
+        },
+        {
+          "id": "ent-g2-lux",
+          "name": "Borealis Capital Partners S.à r.l.",
+          "displayLines": ["Borealis Capital", "Partners S.à r.l."],
+          "entityType": "company",
+          "jurisdictionCode": "EU",
+          "countryFlag": "🇱🇺",
+          "registrationId": "LU-RCS-B198442",
+          "status": "active",
+          "registeredAddress": "5 Rue Guillaume Kroll, L-1882 Luxembourg",
+          "source": "Luxembourg RBE Banded Extract",
+          "asOfDate": "2026-09-10"
+        },
+        {
+          "id": "ent-g2-ky",
+          "name": "Halcyon Reef Ventures Ltd",
+          "displayLines": ["Halcyon Reef", "Ventures Ltd"],
+          "entityType": "company",
+          "jurisdictionCode": "KY",
+          "countryFlag": "🇰🇾",
+          "registrationId": "KY-CR-349182",
+          "status": "active",
+          "registeredAddress": "Ugland House, South Church Street, George Town, Grand Cayman KY1-1104",
+          "source": "Cayman General Registry Banded Attestation",
+          "asOfDate": "2026-08-30"
+        },
+        {
+          "id": "ent-g2-dissolved",
+          "name": "Oldbridge Legacy Nominees Ltd",
+          "displayLines": ["Oldbridge Legacy", "Nominees Ltd"],
+          "entityType": "company",
+          "jurisdictionCode": "UK",
+          "countryFlag": "🇬🇧",
+          "registrationId": "UK-CH-04119023",
+          "status": "dissolved",
+          "registeredAddress": "112 Fleet Street, London EC4A 2AB, United Kingdom",
+          "source": "UK Companies House Gazette Strike-Off Notice",
+          "asOfDate": "2025-11-04"
+        }
+      ],
+      "persons": [
+        {
+          "id": "per-g2-def",
+          "name": "Morag Drummond-Fletcher",
+          "initials": "MD",
+          "nationality": "United Kingdom",
+          "flag": "🇬🇧",
+          "yearOfBirth": 1971,
+          "pepStatus": "none",
+          "pepRoleDescription": "Senior Controlling Partner (Fictional)",
+          "synthetic": true
+        },
+        {
+          "id": "per-g2-pos",
+          "name": "Henrik Lindqvist-Holm",
+          "initials": "HL",
+          "nationality": "Sweden",
+          "flag": "🇸🇪",
+          "yearOfBirth": 1965,
+          "pepStatus": "none",
+          "pepRoleDescription": "Institutional Banded Co-Owner (Fictional)",
+          "synthetic": true
+        },
+        {
+          "id": "per-g2-bel",
+          "name": "Clara Dumont-Moreau",
+          "initials": "CD",
+          "nationality": "Luxembourg",
+          "flag": "🇱🇺",
+          "yearOfBirth": 1983,
+          "pepStatus": "none",
+          "pepRoleDescription": "Minority Banded LP Holder (Fictional)",
+          "synthetic": true
+        }
+      ],
+      "unspecifiedOwners": [],
+      "relationships": [
+        {
+          "id": "rel-g2-1",
+          "subjectId": "ent-g2-root",
+          "interestedPartyId": "ent-g2-lux",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "range", "min": 52, "max": 60 },
+              "directOrIndirect": "direct",
+              "source": "UK PSC Register Banded Statement (52% to 60% covenant)",
+              "asOfDate": "2026-09-21",
+              "confidence": 0.88
+            }
+          ]
+        },
+        {
+          "id": "rel-g2-2",
+          "subjectId": "ent-g2-root",
+          "interestedPartyId": "ent-g2-ky",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "range", "min": 25, "max": 50 },
+              "directOrIndirect": "direct",
+              "source": "UK PSC Register Band (25% to 50%)",
+              "asOfDate": "2026-09-21",
+              "confidence": 0.85
+            }
+          ]
+        },
+        {
+          "id": "rel-g2-3",
+          "subjectId": "ent-g2-root",
+          "interestedPartyId": "ent-g2-dissolved",
+          "interestedPartyType": "entity",
+          "isHistorical": true,
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 15 },
+              "directOrIndirect": "direct",
+              "source": "Historical Filing (Entity Dissolved 2025-11)",
+              "asOfDate": "2025-11-04",
+              "confidence": 0.5
+            }
+          ]
+        },
+        {
+          "id": "rel-g2-4",
+          "subjectId": "ent-g2-lux",
+          "interestedPartyId": "per-g2-def",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "range", "min": 50, "max": 75 },
+              "directOrIndirect": "direct",
+              "source": "Luxembourg Notarial Deed Band (50% to 75%)",
+              "asOfDate": "2026-09-10",
+              "confidence": 0.9
+            }
+          ]
+        },
+        {
+          "id": "rel-g2-5",
+          "subjectId": "ent-g2-ky",
+          "interestedPartyId": "per-g2-pos",
+          "interestedPartyType": "person",
+          "isHot": true,
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "range", "min": 60, "max": 75 },
+              "directOrIndirect": "direct",
+              "source": "Cayman Incumbency Certificate Band (60% to 75%)",
+              "asOfDate": "2026-08-30",
+              "confidence": 0.82
+            }
+          ]
+        },
+        {
+          "id": "rel-g2-6",
+          "subjectId": "ent-g2-ky",
+          "interestedPartyId": "per-g2-bel",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "range", "min": 25, "max": 30 },
+              "directOrIndirect": "direct",
+              "source": "Cayman Incumbency Certificate Band (25% to 30%)",
+              "asOfDate": "2026-08-30",
+              "confidence": 0.82
+            }
+          ]
+        }
+      ],
+      "monitoringEventTemplates": [
+        {
+          "id": "evt-g2-tpl-1-band-tighten",
+          "groupId": "grp-02-cairn",
+          "changeType": "SHARE_CHANGE",
+          "description": "Audited register narrows Halcyon Reef Ventures Ltd's 25–50% band to 44–48%, shifting Henrik Lindqvist-Holm from POSSIBLE (15.0–37.5%) to DEFINITE UBO (26.4–36.0%).",
+          "source": "UK Companies House Audited Share Verification",
+          "confidence": 0.95,
+          "expectedMaterialityHint": "MATERIAL",
+          "data": {
+            "changeType": "SHARE_CHANGE",
+            "relationshipId": "rel-g2-2",
+            "beforeShare": { "kind": "range", "min": 25, "max": 50 },
+            "afterShare": { "kind": "range", "min": 44, "max": 48 }
+          }
+        },
+        {
+          "id": "evt-g2-tpl-2-minor-band-drift",
+          "groupId": "grp-02-cairn",
+          "changeType": "SHARE_CHANGE",
+          "description": "Clara Dumont-Moreau's minority band in Halcyon Reef Ventures Ltd adjusts slightly from 25–30% to 24–28%, remaining strictly BELOW threshold.",
+          "source": "Cayman Annual LP Schedule Amendment",
+          "confidence": 0.89,
+          "expectedMaterialityHint": "MONITOR",
+          "data": {
+            "changeType": "SHARE_CHANGE",
+            "relationshipId": "rel-g2-6",
+            "beforeShare": { "kind": "range", "min": 25, "max": 30 },
+            "afterShare": { "kind": "range", "min": 24, "max": 28 }
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp-03-deccan",
+      "name": "Deccan Grid Infrastructure Pvt Ltd",
+      "rootEntityId": "ent-g3-root",
+      "rootJurisdiction": "IN",
+      "rootFlag": "🇮🇳",
+      "description": "Indian renewable transmission operator with Singapore, UAE, and Mauritius holding layers, illustrating India's 10% SBO rule vs. 25% international rules.",
+      "scenarioSummary": "Jurisdiction-sensitive threshold: Ananya Deshmukh-Rao holds 12.6% effective ownership—classified as a DEFINITE UBO under India's 10% rule, but BELOW under a 25% rule.",
+      "iconName": "scale",
+      "accentColor": "emerald",
+      "riskTier": "STANDARD",
+      "riskTone": "emerald",
+      "traits": ["cross_border"],
+      "synthetic": true,
+      "entities": [
+        {
+          "id": "ent-g3-root",
+          "name": "Deccan Grid Infrastructure Pvt Ltd",
+          "displayLines": ["Deccan Grid Infra", "Pvt Ltd"],
+          "entityType": "company",
+          "jurisdictionCode": "IN",
+          "countryFlag": "🇮🇳",
+          "registrationId": "IN-CIN-U40106MH2018PTC312904",
+          "status": "active",
+          "registeredAddress": "Maker Maxity, 5th North Avenue, Bandra Kurla Complex, Mumbai 400051, India",
+          "source": "MCA21 Form BEN-2 (Significant Beneficial Owner Register)",
+          "asOfDate": "2026-09-25"
+        },
+        {
+          "id": "ent-g3-sg",
+          "name": "Indus Straits Energy Pte. Ltd.",
+          "displayLines": ["Indus Straits Energy", "Pte. Ltd."],
+          "entityType": "company",
+          "jurisdictionCode": "SG",
+          "countryFlag": "🇸🇬",
+          "registrationId": "SG-UEN-202011842R",
+          "status": "active",
+          "registeredAddress": "80 Raffles Place, #32-01 UOB Plaza 1, Singapore 048624",
+          "source": "ACRA Register of Controllers",
+          "asOfDate": "2026-09-19"
+        },
+        {
+          "id": "ent-g3-uae",
+          "name": "Al-Qamar Infrastructure FZ-LLC",
+          "displayLines": ["Al-Qamar Infra", "FZ-LLC"],
+          "entityType": "company",
+          "jurisdictionCode": "UAE",
+          "countryFlag": "🇦🇪",
+          "registrationId": "AE-DIFC-4829",
+          "status": "active",
+          "registeredAddress": "Gate Village Building 4, Level 3, DIFC, Dubai, United Arab Emirates",
+          "source": "DIFC Registrar of Companies Extract",
+          "asOfDate": "2026-09-15"
+        }
+      ],
+      "persons": [
+        {
+          "id": "per-g3-major",
+          "name": "Vikramaditya Kulkarni-Nair",
+          "initials": "VK",
+          "nationality": "India",
+          "flag": "🇮🇳",
+          "yearOfBirth": 1969,
+          "pepStatus": "none",
+          "pepRoleDescription": "Promoter & Managing Director (Fictional)",
+          "synthetic": true
+        },
+        {
+          "id": "per-g3-12pct",
+          "name": "Ananya Deshmukh-Rao",
+          "initials": "AD",
+          "nationality": "India",
+          "flag": "🇮🇳",
+          "yearOfBirth": 1978,
+          "pepStatus": "none",
+          "pepRoleDescription": "Significant Beneficial Owner under India 10% Rule (Fictional)",
+          "synthetic": true
+        },
+        {
+          "id": "per-g3-minor",
+          "name": "Rohan Chatterjee-Sen",
+          "initials": "RC",
+          "nationality": "Singapore",
+          "flag": "🇸🇬",
+          "yearOfBirth": 1984,
+          "pepStatus": "none",
+          "pepRoleDescription": "Minority Co-Investor (Fictional)",
+          "synthetic": true
+        }
+      ],
+      "unspecifiedOwners": [],
+      "relationships": [
+        {
+          "id": "rel-g3-1",
+          "subjectId": "ent-g3-root",
+          "interestedPartyId": "per-g3-major",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 48 },
+              "directOrIndirect": "direct",
+              "source": "MCA21 MGT-7 Annual Return",
+              "asOfDate": "2026-09-25",
+              "confidence": 1.0
+            }
+          ]
+        },
+        {
+          "id": "rel-g3-2",
+          "subjectId": "ent-g3-root",
+          "interestedPartyId": "ent-g3-sg",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 36 },
+              "directOrIndirect": "direct",
+              "source": "MCA21 MGT-7 Annual Return",
+              "asOfDate": "2026-09-25",
+              "confidence": 0.99
+            }
+          ]
+        },
+        {
+          "id": "rel-g3-3",
+          "subjectId": "ent-g3-root",
+          "interestedPartyId": "ent-g3-uae",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 16 },
+              "directOrIndirect": "direct",
+              "source": "MCA21 MGT-7 Annual Return",
+              "asOfDate": "2026-09-25",
+              "confidence": 0.99
+            }
+          ]
+        },
+        {
+          "id": "rel-g3-4",
+          "subjectId": "ent-g3-sg",
+          "interestedPartyId": "per-g3-12pct",
+          "interestedPartyType": "person",
+          "isHot": true,
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 35 },
+              "directOrIndirect": "direct",
+              "source": "ACRA Share Allotment Return (36% × 35% = 12.6%)",
+              "asOfDate": "2026-09-19",
+              "confidence": 0.97
+            }
+          ]
+        },
+        {
+          "id": "rel-g3-5",
+          "subjectId": "ent-g3-sg",
+          "interestedPartyId": "per-g3-minor",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 15 },
+              "directOrIndirect": "direct",
+              "source": "ACRA Share Allotment Return (36% × 15% = 5.4%)",
+              "asOfDate": "2026-09-19",
+              "confidence": 0.97
+            }
+          ]
+        },
+        {
+          "id": "rel-g3-6",
+          "subjectId": "ent-g3-uae",
+          "interestedPartyId": "per-g3-minor",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 20 },
+              "directOrIndirect": "direct",
+              "source": "DIFC Share Register (16% × 20% = 3.2%)",
+              "asOfDate": "2026-09-15",
+              "confidence": 0.95
+            }
+          ]
+        }
+      ],
+      "monitoringEventTemplates": [
+        {
+          "id": "evt-g3-tpl-1-cross-50pct",
+          "groupId": "grp-03-deccan",
+          "changeType": "SHARE_CHANGE",
+          "description": "Promoter Vikramaditya Kulkarni-Nair acquires an additional 6.0% direct stake in Deccan Grid Infrastructure Pvt Ltd (48.0% → 54.0%), crossing the 50% majority control threshold.",
+          "source": "MCA21 Form PAS-3 Return of Allotment",
+          "confidence": 0.99,
+          "expectedMaterialityHint": "MATERIAL",
+          "data": {
+            "changeType": "SHARE_CHANGE",
+            "relationshipId": "rel-g3-1",
+            "beforeShare": { "kind": "exact", "value": 48 },
+            "afterShare": { "kind": "exact", "value": 54 }
+          }
+        },
+        {
+          "id": "evt-g3-tpl-2-small-monitor",
+          "groupId": "grp-03-deccan",
+          "changeType": "SHARE_CHANGE",
+          "description": "Rohan Chatterjee-Sen's stake in Al-Qamar Infrastructure FZ-LLC increases marginally from 20% to 22% (effective root stake 8.6% → 8.9%), crossing no threshold.",
+          "source": "DIFC Annual Confirmation Filing",
+          "confidence": 0.93,
+          "expectedMaterialityHint": "MONITOR",
+          "data": {
+            "changeType": "SHARE_CHANGE",
+            "relationshipId": "rel-g3-6",
+            "beforeShare": { "kind": "exact", "value": 20 },
+            "afterShare": { "kind": "exact", "value": 22 }
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp-04-ouroboros",
+      "name": "Ouroboros Meridian Trade S.A.",
+      "rootEntityId": "ent-g4-root",
+      "rootJurisdiction": "EU",
+      "rootFlag": "🇱🇺",
+      "description": "Luxembourg commodities trading structure featuring reciprocal cross-shareholdings between intermediate vehicles in Singapore and Cayman Islands.",
+      "scenarioSummary": "Circular ownership: Cygnus Trade Holdings Pte. Ltd. and Lyra Horizon Capital Ltd hold 30% and 25% stakes in each other. Engine breaks the cycle cleanly and resolves true natural-person UBOs.",
+      "iconName": "refresh",
+      "accentColor": "coral",
+      "riskTier": "ELEVATED",
+      "riskTone": "amber",
+      "traits": ["cycle", "cross_border"],
+      "synthetic": true,
+      "entities": [
+        {
+          "id": "ent-g4-root",
+          "name": "Ouroboros Meridian Trade S.A.",
+          "displayLines": ["Ouroboros Meridian", "Trade S.A."],
+          "entityType": "company",
+          "jurisdictionCode": "EU",
+          "countryFlag": "🇱🇺",
+          "registrationId": "LU-RCS-B271908",
+          "status": "active",
+          "registeredAddress": "22 Avenue Monterey, L-2163 Luxembourg",
+          "source": "Luxembourg RCS Consolidated Filing",
+          "asOfDate": "2026-09-20"
+        },
+        {
+          "id": "ent-g4-sg-a",
+          "name": "Cygnus Trade Holdings Pte. Ltd.",
+          "displayLines": ["Cygnus Trade", "Holdings Pte. Ltd."],
+          "entityType": "company",
+          "jurisdictionCode": "SG",
+          "countryFlag": "🇸🇬",
+          "registrationId": "SG-UEN-201709321M",
+          "status": "active",
+          "registeredAddress": "1 Raffles Quay, #26-10 North Tower, Singapore 048583",
+          "source": "ACRA Corporate Profile",
+          "asOfDate": "2026-09-17"
+        },
+        {
+          "id": "ent-g4-ky-b",
+          "name": "Lyra Horizon Capital Ltd",
+          "displayLines": ["Lyra Horizon", "Capital Ltd"],
+          "entityType": "company",
+          "jurisdictionCode": "KY",
+          "countryFlag": "🇰🇾",
+          "registrationId": "KY-CR-381044",
+          "status": "active",
+          "registeredAddress": "Governors Square, 23 Lime Tree Bay Ave, Grand Cayman",
+          "source": "Cayman Corporate Registry Extract",
+          "asOfDate": "2026-09-11"
+        }
+      ],
+      "persons": [
+        {
+          "id": "per-g4-ubo1",
+          "name": "Sébastien Voss-Delacroix",
+          "initials": "SV",
+          "nationality": "France",
+          "flag": "🇫🇷",
+          "yearOfBirth": 1972,
+          "pepStatus": "none",
+          "pepRoleDescription": "Controlling Shareholder via Cygnus & Lyra (Fictional)",
+          "synthetic": true
+        },
+        {
+          "id": "per-g4-ubo2",
+          "name": "Mei-Ling Tan-Kwan",
+          "initials": "MT",
+          "nationality": "Singapore",
+          "flag": "🇸🇬",
+          "yearOfBirth": 1976,
+          "pepStatus": "none",
+          "pepRoleDescription": "Co-Founder & Direct Lyra Shareholder (Fictional)",
+          "synthetic": true
+        },
+        {
+          "id": "per-g4-min",
+          "name": "Lukas Van Der Berg",
+          "initials": "LV",
+          "nationality": "Netherlands",
+          "flag": "🇳🇱",
+          "yearOfBirth": 1985,
+          "pepStatus": "none",
+          "pepRoleDescription": "Minority Non-Voting LP Participant (Fictional)",
+          "synthetic": true
+        }
+      ],
+      "unspecifiedOwners": [],
+      "relationships": [
+        {
+          "id": "rel-g4-1",
+          "subjectId": "ent-g4-root",
+          "interestedPartyId": "ent-g4-sg-a",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 55 },
+              "directOrIndirect": "direct",
+              "source": "Luxembourg RCS Share Register",
+              "asOfDate": "2026-09-20",
+              "confidence": 0.98
+            }
+          ]
+        },
+        {
+          "id": "rel-g4-2",
+          "subjectId": "ent-g4-root",
+          "interestedPartyId": "ent-g4-ky-b",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 45 },
+              "directOrIndirect": "direct",
+              "source": "Luxembourg RCS Share Register",
+              "asOfDate": "2026-09-20",
+              "confidence": 0.98
+            }
+          ]
+        },
+        {
+          "id": "rel-g4-cycle-1",
+          "subjectId": "ent-g4-sg-a",
+          "interestedPartyId": "ent-g4-ky-b",
+          "interestedPartyType": "entity",
+          "isHot": true,
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 30 },
+              "directOrIndirect": "direct",
+              "source": "ACRA Cross-Holding Disclosure",
+              "asOfDate": "2026-09-17",
+              "confidence": 0.94
+            }
+          ]
+        },
+        {
+          "id": "rel-g4-cycle-2",
+          "subjectId": "ent-g4-ky-b",
+          "interestedPartyId": "ent-g4-sg-a",
+          "interestedPartyType": "entity",
+          "isHot": true,
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 25 },
+              "directOrIndirect": "direct",
+              "source": "Cayman Reciprocal Shareholding Schedule",
+              "asOfDate": "2026-09-11",
+              "confidence": 0.91
+            }
+          ]
+        },
+        {
+          "id": "rel-g4-5",
+          "subjectId": "ent-g4-sg-a",
+          "interestedPartyId": "per-g4-ubo1",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 60 },
+              "directOrIndirect": "direct",
+              "source": "ACRA Register of Members",
+              "asOfDate": "2026-09-17",
+              "confidence": 0.96
+            }
+          ]
+        },
+        {
+          "id": "rel-g4-6",
+          "subjectId": "ent-g4-ky-b",
+          "interestedPartyId": "per-g4-ubo2",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 75 },
+              "directOrIndirect": "direct",
+              "source": "Cayman Share Register",
+              "asOfDate": "2026-09-11",
+              "confidence": 0.95
+            }
+          ]
+        },
+        {
+          "id": "rel-g4-7",
+          "subjectId": "ent-g4-sg-a",
+          "interestedPartyId": "per-g4-min",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 10 },
+              "directOrIndirect": "direct",
+              "source": "ACRA Register of Members",
+              "asOfDate": "2026-09-17",
+              "confidence": 0.96
+            }
+          ]
+        }
+      ],
+      "monitoringEventTemplates": [
+        {
+          "id": "evt-g4-tpl-1-entity-dissolved",
+          "groupId": "grp-04-ouroboros",
+          "changeType": "ENTITY_DISSOLVED",
+          "description": "Intermediate holding vehicle Lyra Horizon Capital Ltd is struck off the Cayman register, breaking the reciprocal loop and eliminating Mei-Ling Tan-Kwan's UBO path.",
+          "source": "Cayman Islands Extraordinary Gazette Strike-Off Notice",
+          "confidence": 0.98,
+          "expectedMaterialityHint": "MATERIAL",
+          "data": {
+            "changeType": "ENTITY_DISSOLVED",
+            "entityId": "ent-g4-ky-b",
+            "dissolvedDate": "2026-10-12"
+          }
+        },
+        {
+          "id": "evt-g4-tpl-2-cycle-unwind",
+          "groupId": "grp-04-ouroboros",
+          "changeType": "RELATIONSHIP_ENDED",
+          "description": "Reciprocal cross-holding from Cygnus Trade Holdings Pte. Ltd. into Lyra Horizon Capital Ltd is cancelled following group restructuring.",
+          "source": "Cayman Share Cancellation Filing",
+          "confidence": 0.92,
+          "expectedMaterialityHint": "MONITOR",
+          "data": {
+            "changeType": "RELATIONSHIP_ENDED",
+            "relationshipId": "rel-g4-cycle-2"
+          }
+        }
+      ]
+    },
+    {
+      "id": "grp-05-obsidian",
+      "name": "Obsidian Wharf Properties Ltd",
+      "rootEntityId": "ent-g5-root",
+      "rootJurisdiction": "UK",
+      "rootFlag": "🇬🇧",
+      "description": "Prime commercial real-estate vehicle in London held through a BVI nominee company and a Cayman Islands discretionary trust with undisclosed beneficiaries.",
+      "scenarioSummary": "Opacity: Ownership chains terminate in an undisclosed BVI nominee (-24% completeness) and a Cayman discretionary trust with withheld beneficiary rolls (-18% completeness), leaving 58% completeness.",
+      "iconName": "eye_off",
+      "accentColor": "grey",
+      "riskTier": "OPAQUE STRUCTURE",
+      "riskTone": "rose",
+      "traits": ["data_gap", "cross_border"],
+      "synthetic": true,
+      "entities": [
+        {
+          "id": "ent-g5-root",
+          "name": "Obsidian Wharf Properties Ltd",
+          "displayLines": ["Obsidian Wharf", "Properties Ltd"],
+          "entityType": "company",
+          "jurisdictionCode": "UK",
+          "countryFlag": "🇬🇧",
+          "registrationId": "UK-CH-12409833",
+          "status": "active",
+          "registeredAddress": "1 Canada Square, Level 28, Canary Wharf, London E14 5AB, United Kingdom",
+          "source": "UK Register of Overseas Entities (ROE) & CH Filing",
+          "asOfDate": "2026-09-22"
+        },
+        {
+          "id": "ent-g5-bvi-nom",
+          "name": "Aegis Nominee Corporate Services Ltd",
+          "displayLines": ["Aegis Nominee", "Corp Services Ltd"],
+          "entityType": "company",
+          "jurisdictionCode": "BVI",
+          "countryFlag": "🇻🇬",
+          "registrationId": "VG-BVICN-2019440",
+          "status": "active",
+          "registeredAddress": "Kingston Chambers, PO Box 173, Road Town, Tortola, British Virgin Islands",
+          "source": "UK ROE Overseas Entity Disclosure",
+          "asOfDate": "2026-08-19"
+        },
+        {
+          "id": "ent-g5-ky-trust",
+          "name": "Pelican Star Discretionary Settlement",
+          "displayLines": ["Pelican Star", "Discretionary Trust"],
+          "entityType": "trust",
+          "jurisdictionCode": "KY",
+          "countryFlag": "🇰🇾",
+          "registrationId": "KY-TR-90412-D",
+          "status": "active",
+          "registeredAddress": "Strathvale House, 90 North Church Street, George Town, Grand Cayman",
+          "source": "Trustee Declaration of Trust Summary",
+          "asOfDate": "2026-08-25"
+        }
+      ],
+      "persons": [
+        {
+          "id": "per-g5-known",
+          "name": "Julian Sterling-Houghton",
+          "initials": "JS",
+          "nationality": "United Kingdom",
+          "flag": "🇬🇧",
+          "yearOfBirth": 1964,
+          "pepStatus": "none",
+          "pepRoleDescription": "Onshore Executive Director & Verified Shareholder (Fictional)",
+          "synthetic": true
+        },
+        {
+          "id": "per-g5-minor",
+          "name": "Beatrice Aldridge-Vane",
+          "initials": "BA",
+          "nationality": "United Kingdom",
+          "flag": "🇬🇧",
+          "yearOfBirth": 1991,
+          "pepStatus": "none",
+          "pepRoleDescription": "Minority Onshore Co-Shareholder (Fictional)",
+          "synthetic": true
+        }
+      ],
+      "unspecifiedOwners": [
+        {
+          "id": "gap-g5-nominee",
+          "label": "Undisclosed Principal (BVI Nominee)",
+          "reason": "nominee_undisclosed",
+          "reasonDisplay": "Nominee principal undisclosed",
+          "description": "Aegis Nominee Corporate Services Ltd holds shares strictly as nominee under a private declaration of trust; principal identity withheld under BVI third-party confidentiality claim.",
+          "estimatedImpactOnCompleteness": 24,
+          "jurisdictionCode": "BVI",
+          "countryFlag": "🇻🇬",
+          "source": "Compliance RFI Response #RFI-2026-884 (Incomplete)",
+          "asOfDate": "2026-09-05"
+        },
+        {
+          "id": "gap-g5-trust-ben",
+          "label": "Unidentified Class of Beneficiaries",
+          "reason": "information_withheld",
+          "reasonDisplay": "Discretionary trust beneficiary withheld",
+          "description": "Pelican Star Discretionary Settlement deed names an open class of discretionary beneficiaries; protector letter of wishes has not been produced to the bank.",
+          "estimatedImpactOnCompleteness": 18,
+          "jurisdictionCode": "KY",
+          "countryFlag": "🇰🇾",
+          "source": "Cayman Trustee Attestation (Redacted Schedule B)",
+          "asOfDate": "2026-08-25"
+        }
+      ],
+      "relationships": [
+        {
+          "id": "rel-g5-1",
+          "subjectId": "ent-g5-root",
+          "interestedPartyId": "per-g5-known",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 28 },
+              "directOrIndirect": "direct",
+              "source": "UK Companies House PSC Register",
+              "asOfDate": "2026-09-22",
+              "confidence": 1.0
+            }
+          ]
+        },
+        {
+          "id": "rel-g5-2",
+          "subjectId": "ent-g5-root",
+          "interestedPartyId": "ent-g5-bvi-nom",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "nominee",
+              "share": { "kind": "exact", "value": 36 },
+              "directOrIndirect": "direct",
+              "source": "UK Register of Overseas Entities Filing",
+              "asOfDate": "2026-09-22",
+              "confidence": 0.72
+            }
+          ]
+        },
+        {
+          "id": "rel-g5-3",
+          "subjectId": "ent-g5-root",
+          "interestedPartyId": "ent-g5-ky-trust",
+          "interestedPartyType": "entity",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 26 },
+              "directOrIndirect": "direct",
+              "source": "UK Register of Overseas Entities Filing",
+              "asOfDate": "2026-09-22",
+              "confidence": 0.75
+            }
+          ]
+        },
+        {
+          "id": "rel-g5-4",
+          "subjectId": "ent-g5-bvi-nom",
+          "interestedPartyId": "gap-g5-nominee",
+          "interestedPartyType": "unspecified",
+          "isHot": true,
+          "interests": [
+            {
+              "type": "nominee",
+              "share": { "kind": "exact", "value": 100 },
+              "directOrIndirect": "direct",
+              "source": "Unresolved Nominee Principal Inquiry",
+              "asOfDate": "2026-09-05",
+              "confidence": 0.2
+            }
+          ]
+        },
+        {
+          "id": "rel-g5-5",
+          "subjectId": "ent-g5-ky-trust",
+          "interestedPartyId": "gap-g5-trust-ben",
+          "interestedPartyType": "unspecified",
+          "interests": [
+            {
+              "type": "beneficiary_of_trust",
+              "share": { "kind": "exact", "value": 100 },
+              "directOrIndirect": "direct",
+              "source": "Redacted Trust Deed Schedule B",
+              "asOfDate": "2026-08-25",
+              "confidence": 0.3
+            }
+          ]
+        },
+        {
+          "id": "rel-g5-6",
+          "subjectId": "ent-g5-root",
+          "interestedPartyId": "per-g5-minor",
+          "interestedPartyType": "person",
+          "interests": [
+            {
+              "type": "shareholding",
+              "share": { "kind": "exact", "value": 10 },
+              "directOrIndirect": "direct",
+              "source": "UK Companies House Share Register",
+              "asOfDate": "2026-09-22",
+              "confidence": 1.0
+            }
+          ]
+        }
+      ],
+      "monitoringEventTemplates": [
+        {
+          "id": "evt-g5-tpl-1-new-opaque-nominee",
+          "groupId": "grp-05-obsidian",
+          "changeType": "NEW_RELATIONSHIP",
+          "description": "New undisclosed nominee arrangement appears above Obsidian Wharf Properties Ltd via a BVI bearer-equivalent vehicle, deducting an additional 20 points from completeness.",
+          "source": "UK ROE Verification Exception Notice",
+          "confidence": 0.65,
+          "expectedMaterialityHint": "MATERIAL",
+          "data": {
+            "changeType": "NEW_RELATIONSHIP",
+            "newUnspecifiedOwner": {
+              "id": "gap-g5-evt-new-nominee",
+              "label": "Undisclosed Offshore Nominee Principal II",
+              "reason": "nominee_undisclosed",
+              "reasonDisplay": "Nominee principal undisclosed",
+              "description": "Newly interposed offshore nominee refuses beneficial principal attestation.",
+              "estimatedImpactOnCompleteness": 20,
+              "jurisdictionCode": "BVI",
+              "countryFlag": "🇻🇬",
+              "source": "UK ROE Compliance Escalation",
+              "asOfDate": "2026-10-12"
+            },
+            "relationship": {
+              "id": "rel-g5-evt-new-gap",
+              "subjectId": "ent-g5-root",
+              "interestedPartyId": "gap-g5-evt-new-nominee",
+              "interestedPartyType": "unspecified",
+              "isHot": true,
+              "interests": [
+                {
+                  "type": "nominee",
+                  "share": { "kind": "exact", "value": 16 },
+                  "directOrIndirect": "direct",
+                  "source": "UK ROE Notice of Unresolved Beneficial Interest",
+                  "asOfDate": "2026-10-12",
+                  "confidence": 0.4
+                }
+              ]
+            }
+          }
+        },
+        {
+          "id": "evt-g5-tpl-2-minor-adjustment",
+          "groupId": "grp-05-obsidian",
+          "changeType": "SHARE_CHANGE",
+          "description": "Beatrice Aldridge-Vane's onshore minority stake in Obsidian Wharf Properties Ltd adjusts from 10.0% to 9.5%, remaining below the 25% UK threshold.",
+          "source": "UK Companies House Confirmation Statement",
+          "confidence": 0.99,
+          "expectedMaterialityHint": "MONITOR",
+          "data": {
+            "changeType": "SHARE_CHANGE",
+            "relationshipId": "rel-g5-6",
+            "beforeShare": { "kind": "exact", "value": 10 },
+            "afterShare": { "kind": "exact", "value": 9.5 }
+          }
+        }
+      ]
+    }
+  ]
+}

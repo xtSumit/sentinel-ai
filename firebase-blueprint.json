@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role-based access control and governance mode preference",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["analyst", "supervisor"] },
+        "governanceMode": { "type": "string", "enum": ["human-in-the-loop", "automated"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "role"]
+    },
+    "AuditRecord": {
+      "title": "AuditRecord",
+      "description": "Immutable append-only audit trail record for compliance actions",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "actorUid": { "type": "string" },
+        "actorType": { "type": "string", "enum": ["HUMAN", "SYSTEM", "AI"] },
+        "actorName": { "type": "string" },
+        "action": { "type": "string" },
+        "summary": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "customerId": { "type": "string" },
+        "groupId": { "type": "string" },
+        "eventId": { "type": "string" },
+        "caseId": { "type": "string" },
+        "personId": { "type": "string" },
+        "isAiGenerated": { "type": "boolean" },
+        "details": { "type": "object" }
+      },
+      "required": ["actorUid", "actorType", "action", "timestamp"]
+    },
+    "Customer": {
+      "title": "Customer",
+      "description": "Onboarded entity under perpetual KYC monitoring",
+      "type": "object",
+      "properties": {
+        "customerId": { "type": "string" },
+        "legalName": { "type": "string" },
+        "jurisdiction": { "type": "string" },
+        "groupKey": { "type": "string" },
+        "onboardedBy": { "type": "string" },
+        "onboardedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["onboarded", "offboarded", "under_review"] }
+      },
+      "required": ["customerId", "legalName", "jurisdiction", "groupKey", "onboardedBy", "status"]
+    },
+    "Event": {
+      "title": "Event",
+      "description": "Registry change event for ownership graph mutation and materiality assessment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "groupId": { "type": "string" },
+        "templateId": { "type": "string" },
+        "changeType": { "type": "string", "enum": ["SHARE_CHANGE", "NEW_RELATIONSHIP", "RELATIONSHIP_ENDED", "ENTITY_DISSOLVED"] },
+        "payload": { "type": "object" },
+        "description": { "type": "string" },
+        "source": { "type": "string" },
+        "confidence": { "type": "number" },
+        "detectedAt": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "monitoring", "dismissed"] },
+        "decidedBy": { "type": "string" },
+        "decidedAt": { "type": "string" },
+        "dismissReason": { "type": "string" }
+      },
+      "required": ["customerId", "groupId", "changeType", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": "User",
+      "description": "Private user profiles with role and governance preferences"
+    },
+    "/audit/{auditId}": {
+      "schema": "AuditRecord",
+      "description": "Append-only immutable audit trail"
+    },
+    "/customers/{customerId}": {
+      "schema": "Customer",
+      "description": "Onboarded KYC customers"
+    },
+    "/events/{eventId}": {
+      "schema": "Event",
+      "description": "Ownership registry changes and monitoring alert feed"
+    }
+  }
+}

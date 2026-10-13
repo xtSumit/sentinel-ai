@@ -1,0 +1,300 @@
+@import "tailwindcss";
+
+:root {
+  /* Backgrounds */
+  --bg: #f6f4f1;
+  --bg2: #fbfaf8;
+  --card: #ffffff;
+
+  /* Ink */
+  --ink: #221e33;
+  --ink2: #5c5870;
+  --ink3: #9995a8;
+
+  /* Lines */
+  --line: #e9e5de;
+  --line2: #f1eee8;
+
+  /* Primary Blue (from Sentinel Logo) */
+  --primary: #016EFD;
+  --primary2: #5AA9FE;
+  --primary-s: #E8F2FF;
+  --cyan: #00C8FC;
+  --deep: #021AF1;
+
+  /* Semantic Accents */
+  --coral: #f4553f;
+  --coral-s: #feefec;
+  --emerald: #059669;
+  --emerald-s: #e6f6ef;
+  --amber: #d97706;
+  --amber-s: #fdf3e5;
+  --rose: #e11d48;
+  --rose-s: #fdecf0;
+  --grey: #8b8798;
+  --grey-s: #f0efec;
+
+  /* Motion & Elevation */
+  --ts: all .22s cubic-bezier(.4, 0, .2, 1);
+  --sh1: 0 1px 2px rgba(34, 30, 51, 0.05), 0 1px 3px rgba(34, 30, 51, 0.05);
+  --sh2: 0 4px 16px rgba(34, 30, 51, 0.08), 0 2px 5px rgba(34, 30, 51, 0.04);
+  --sh3: 0 14px 44px rgba(34, 30, 51, 0.14), 0 4px 12px rgba(34, 30, 51, 0.06);
+}
+
+@theme {
+  --color-bg: #f6f4f1;
+  --color-bg2: #fbfaf8;
+  --color-card: #ffffff;
+
+  --color-ink: #221e33;
+  --color-ink2: #5c5870;
+  --color-ink3: #9995a8;
+
+  --color-line: #e9e5de;
+  --color-line2: #f1eee8;
+
+  --color-primary: #016EFD;
+  --color-primary2: #5AA9FE;
+  --color-primary-s: #E8F2FF;
+  --color-cyan: #00C8FC;
+  --color-deep: #021AF1;
+
+  --color-coral: #f4553f;
+  --color-coral-s: #feefec;
+  --color-emerald: #059669;
+  --color-emerald-s: #e6f6ef;
+  --color-amber: #d97706;
+  --color-amber-s: #fdf3e5;
+  --color-rose: #e11d48;
+  --color-rose-s: #fdecf0;
+  --color-grey: #8b8798;
+  --color-grey-s: #f0efec;
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Sora', sans-serif;
+  --font-mono-code: 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography Helpers */
+.font-display {
+  font-family: 'Sora', sans-serif;
+}
+
+.font-mono-code {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.section-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--ink3);
+}
+
+/* Gradients */
+.sig-gradient-bg {
+  background: linear-gradient(135deg, #00C8FC 0%, #021AF1 100%);
+}
+
+.sig-gradient-text {
+  background: linear-gradient(135deg, #00C8FC 0%, #021AF1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Animations per DESIGN.md */
+@keyframes vin {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.anim-vin {
+  animation: vin 0.35s ease forwards;
+}
+
+@keyframes nodein {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.anim-nodein {
+  animation: nodein 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+}
+
+@keyframes warnp {
+  0%, 100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.anim-warnp {
+  animation: warnp 2.2s ease-in-out infinite;
+}
+
+@keyframes slin {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.anim-slin {
+  animation: slin 0.4s ease forwards;
+}
+
+@keyframes drop {
+  from {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.anim-drop {
+  animation: drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes mpulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+.anim-mpulse {
+  animation: mpulse 1.8s ease-out infinite;
+}
+
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.anim-pop {
+  animation: pop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.anim-fade {
+  animation: fade 0.3s ease forwards;
+}
+
+@keyframes stamp {
+  from {
+    opacity: 0;
+    transform: rotate(14deg) scale(1.7);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(3deg) scale(1);
+  }
+}
+
+.anim-stamp {
+  animation: stamp 0.5s cubic-bezier(0.34, 1.8, 0.64, 1) 0.18s forwards;
+}
+
+@keyframes tin {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.anim-tin {
+  animation: tin 0.4s cubic-bezier(0.34, 1.4, 0.64, 1) forwards;
+}
+
+@keyframes rip {
+  0% {
+    r: 16;
+    opacity: 0.9;
+  }
+  100% {
+    r: 64;
+    opacity: 0;
+  }
+}
+
+.anim-rip {
+  animation: rip 1s ease-out forwards;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.anim-spin {
+  animation: spin 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

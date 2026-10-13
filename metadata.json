@@ -1,0 +1,6 @@
+{
+  "name": "Sentinel AI — Beneficial Ownership & Perpetual KYC",
+  "description": "Beneficial-ownership resolution and perpetual-KYC compliance platform for bank compliance analysts.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

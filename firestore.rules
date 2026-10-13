@@ -1,0 +1,147 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isSupervisor() {
+      return isSignedIn() && getUserRole() == 'supervisor';
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 1. Users collection: users/{uid}
+    // Readable by owner only.
+    // Create: owner only, with role "analyst".
+    // Update: owner only; can only update governanceMode (and only to "automated" if supervisor), role can NEVER be changed by client.
+    // Delete: denied.
+    match /users/{uid} {
+      allow get: if isOwner(uid);
+      allow list: if false;
+
+      allow create: if isOwner(uid)
+        && isValidId(uid)
+        && request.resource.data.keys().hasAll(['uid', 'role'])
+        && request.resource.data.uid == uid
+        && request.resource.data.role == 'analyst'
+        && (!('governanceMode' in request.resource.data) || request.resource.data.governanceMode == 'human-in-the-loop');
+
+      allow update: if isOwner(uid)
+        && isValidId(uid)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.role == resource.data.role
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'uid', 'createdAt'])
+        && (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['governanceMode'])
+          || request.resource.data.governanceMode == 'human-in-the-loop'
+          || (request.resource.data.governanceMode == 'automated' && resource.data.role == 'supervisor')
+        );
+
+      allow delete: if false;
+    }
+
+    // 2. Audit collection: audit/{auditId}
+    // Any signed-in user can read and create.
+    // Create requires actorUid == request.auth.uid, actorType in ['HUMAN', 'SYSTEM', 'AI'], action string, server timestamp.
+    // Append-only: no update, no delete.
+    match /audit/{auditId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(auditId)
+        && request.resource.data.keys().hasAll(['actorUid', 'actorType', 'action'])
+        && request.resource.data.actorUid == request.auth.uid
+        && request.resource.data.actorType in ['HUMAN', 'SYSTEM', 'AI']
+        && request.resource.data.action is string
+        && request.resource.data.action.size() > 0
+        && request.resource.data.action.size() <= 500
+        && (
+          !('timestamp' in request.resource.data)
+          || request.resource.data.timestamp == request.time
+          || request.resource.data.timestamp is string
+        );
+
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // 3. Customers collection: customers/{customerId}
+    // Any signed-in user can read.
+    // Create requires onboardedBy == request.auth.uid, status == "onboarded", valid fields.
+    // Update: only status may be updated.
+    // Delete: denied.
+    match /customers/{customerId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(customerId)
+        && request.resource.data.keys().hasAll(['customerId', 'legalName', 'jurisdiction', 'groupKey', 'onboardedBy', 'status'])
+        && request.resource.data.customerId == customerId
+        && request.resource.data.onboardedBy == request.auth.uid
+        && request.resource.data.status == 'onboarded'
+        && request.resource.data.legalName is string
+        && request.resource.data.legalName.size() > 0
+        && request.resource.data.legalName.size() <= 200
+        && request.resource.data.jurisdiction is string
+        && request.resource.data.groupKey is string;
+
+      allow update: if isSignedIn()
+        && isValidId(customerId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt'])
+        && request.resource.data.status in ['onboarded', 'offboarded', 'under_review'];
+
+      allow delete: if false;
+    }
+
+    // 4. Events collection: events/{eventId}
+    // Readable by signed-in users.
+    // Create: supervisors only (for preview injection; prod push endpoint writes server-side via Admin SDK).
+    // Update: any signed-in user may update only status, decidedBy, decidedAt, dismissReason, only from pending,
+    // and decidedBy must equal request.auth.uid. If status is dismissed, dismissReason is required.
+    // Delete: denied.
+    match /events/{eventId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSupervisor()
+        && isValidId(eventId)
+        && request.resource.data.keys().hasAll(['customerId', 'groupId', 'changeType', 'status'])
+        && request.resource.data.status in ['pending', 'monitoring', 'accepted', 'dismissed']
+        && request.resource.data.changeType in ['SHARE_CHANGE', 'NEW_RELATIONSHIP', 'RELATIONSHIP_ENDED', 'ENTITY_DISSOLVED'];
+
+      allow update: if isSignedIn()
+        && isValidId(eventId)
+        && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedBy', 'decidedAt', 'dismissReason'])
+        && request.resource.data.status in ['accepted', 'monitoring', 'dismissed']
+        && request.resource.data.decidedBy == request.auth.uid
+        && (
+          request.resource.data.status != 'dismissed'
+          || (
+            'dismissReason' in request.resource.data
+            && request.resource.data.dismissReason is string
+            && request.resource.data.dismissReason.size() > 0
+          )
+        );
+
+      allow delete: if false;
+    }
+  }
+}
