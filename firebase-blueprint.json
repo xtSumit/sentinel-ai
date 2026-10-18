@@ -73,6 +73,63 @@
         "dismissReason": { "type": "string" }
       },
       "required": ["customerId", "groupId", "changeType", "status"]
+    },
+    "ScreeningRun": {
+      "title": "ScreeningRun",
+      "description": "Full telemetry and findings for an asynchronous due diligence screening execution",
+      "type": "object",
+      "properties": {
+        "runId": { "type": "string" },
+        "customerId": { "type": "string" },
+        "groupId": { "type": "string" },
+        "triggerType": { "type": "string", "enum": ["PKYC", "ONBOARDING"] },
+        "startedAt": { "type": "string" },
+        "startedBy": { "type": "string" },
+        "completedAt": { "type": "string" },
+        "overallOutcome": { "type": "string", "enum": ["HIT", "REVIEW", "CLEAR"] }
+      },
+      "required": ["runId", "customerId", "groupId", "triggerType", "startedAt", "startedBy", "overallOutcome"]
+    },
+    "Case": {
+      "title": "Case",
+      "description": "Compliance case docket record for PKYC and onboarding due diligence",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "caseId": { "type": "string" },
+        "type": { "type": "string", "enum": ["PKYC", "ONBOARDING"] },
+        "customerId": { "type": "string" },
+        "groupId": { "type": "string" },
+        "groupName": { "type": "string" },
+        "overallStatus": { "type": "string", "enum": ["CRITICAL", "STANDARD", "CLEAR"] },
+        "state": { "type": "string", "enum": ["open", "closed"] },
+        "analystUid": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "closedBy": { "type": "string" },
+        "closedAt": { "type": "string" },
+        "resolutionNote": { "type": "string" }
+      },
+      "required": ["id", "caseId", "type", "customerId", "groupId", "overallStatus", "state", "analystUid", "createdAt"]
+    },
+    "DocumentExtraction": {
+      "title": "DocumentExtraction",
+      "description": "Document intake, extraction record, and analyst confirmation ledger",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customerId": { "type": "string" },
+        "groupId": { "type": "string" },
+        "gapId": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileMimeType": { "type": "string" },
+        "extractor": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "extracted", "confirmed", "rejected"] },
+        "analystUid": { "type": "string" },
+        "requestedAt": { "type": "string" },
+        "extractedAt": { "type": "string" },
+        "confirmedAt": { "type": "string" }
+      },
+      "required": ["id", "customerId", "groupId", "gapId", "fileName", "status", "analystUid"]
     }
   },
   "firestore": {
@@ -91,6 +148,18 @@
     "/events/{eventId}": {
       "schema": "Event",
       "description": "Ownership registry changes and monitoring alert feed"
+    },
+    "/screeningRuns/{runId}": {
+      "schema": "ScreeningRun",
+      "description": "Screening execution runs and findings"
+    },
+    "/cases/{caseId}": {
+      "schema": "Case",
+      "description": "Compliance case docket for PKYC and onboarding"
+    },
+    "/documentExtractions/{extractionId}": {
+      "schema": "DocumentExtraction",
+      "description": "Document intake and shareholder extractions"
     }
   }
 }

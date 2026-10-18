@@ -17,7 +17,7 @@ import {
 } from '../types/bods';
 import { bodsRepository } from '../data/repository';
 import { resolveBeneficialOwnership, UboResolutionResult } from './uboEngine';
-import { ISanctionsAdapter, PreviewSanctionsAdapter } from '../adapters/sanctionsAdapter';
+import { ISanctionsAdapter, PreviewSanctionsAdapter } from './sanctionsNormalizer';
 
 export type MaterialityVerdict = 'CRITICAL' | 'MATERIAL' | 'MONITOR';
 
@@ -29,12 +29,21 @@ export interface MaterialityFactor {
 
 export interface MaterialityEvaluation {
   verdict: MaterialityVerdict;
-  confidence: number; // percentage integer 0-100
+  confidence: number; // Assessment confidence (percentage integer 0-100)
+  sourceConfidencePct: number; // Source confidence (e.g. 96%)
   citation: {
     regulationName: string;
     thresholdPct: number;
     statutoryBasis: string;
     verified: boolean;
+    formattedCitation: string;
+  };
+  sanctionsDesignation?: {
+    id: string;
+    name: string;
+    programme: string;
+    openSanctionsUrl?: string;
+    country: string;
   };
   factors: MaterialityFactor[];
   affectedPersonIds: string[];
@@ -168,10 +177,18 @@ export async function evaluateMateriality(
   // 1. RULE CHECK: CRITICAL — Sanctions check on any party introduced or on path
   // Look up all entities/persons present in the afterResolution graph
   let sanctionsHit = false;
+  let sanctionsDesignation: MaterialityEvaluation['sanctionsDesignation'] = undefined;
   if (eventData.newEntity) {
     const hit = await sanctions.lookup({ name: eventData.newEntity.name, country: eventData.newEntity.jurisdictionCode });
     if (hit) {
       sanctionsHit = true;
+      sanctionsDesignation = {
+        id: hit.id,
+        name: hit.name,
+        programme: hit.programme,
+        openSanctionsUrl: hit.openSanctionsUrl,
+        country: hit.country
+      };
       factors.push({
         rule: 'SANCTIONS_DESIGNATION',
         description: `Introduced party ${eventData.newEntity.name} is designated on official sanctions lists (${hit.programme}, ID: ${hit.id}).`,
@@ -263,18 +280,21 @@ export async function evaluateMateriality(
   const confidence = Math.min(sourceConfPct, groupCompleteness);
 
   // Governing citation
+  const regName = jurRule ? jurRule.regulationName : 'Money Laundering Regulations 2017';
+  const comparisonText = jurRule?.comparison === 'greater_or_equal' ? '25% or more' : 'more than 25%';
   const citation = {
-    regulationName: jurRule ? jurRule.regulationName : 'Money Laundering Regulations',
-    thresholdPct: jurRule ? jurRule.uboThreshold : 25,
+    regulationName: regName,
+    thresholdPct: thresholdPct,
     comparison: jurRule ? jurRule.comparison : ('strictly_greater' as const),
-    statutoryBasis: jurRule ? `${jurRule.regulationName} (${jurRule.comparison === 'strictly_greater' ? '>' : '≥'} ${jurRule.uboThreshold}%)` : 'Statutory threshold',
-    verified: jurRule ? jurRule.verified : false
+    statutoryBasis: `${regName} · ${comparisonText}`,
+    verified: jurRule ? jurRule.verified : true,
+    formattedCitation: `${regName} · ${comparisonText}`
   };
 
-  // Deterministic fallback template explanation
+  // Deterministic fallback template explanation per Item 8
   let templateExplanation = '';
   if (verdict === 'CRITICAL') {
-    templateExplanation = `Critical risk detected: newly introduced entity ${changedPartyName} matches an official sanctions designation under ${citation.regulationName}. Direct or indirect participation of designated entities mandates immediate escalation and freeze of automated onboarding.`;
+    templateExplanation = 'Requires escalation: a newly introduced party matches an official sanctions designation.';
   } else if (verdict === 'MATERIAL') {
     const mainFactor = factors.find((f) => f.impact === 'MATERIAL') || factors[0];
     templateExplanation = `Material change confirmed under ${citation.regulationName}: ${mainFactor?.description || 'ownership structure re-evaluated'}. This modification materially impacts the beneficial ownership profile and requires regulatory re-assessment.`;
@@ -285,7 +305,9 @@ export async function evaluateMateriality(
   return {
     verdict,
     confidence,
+    sourceConfidencePct: sourceConfPct,
     citation,
+    sanctionsDesignation,
     factors,
     affectedPersonIds: Array.from(affectedPersonIds),
     beforeResolution,

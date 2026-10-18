@@ -12,7 +12,24 @@ Sentinel AI is a beneficial-ownership and perpetual-KYC application for bank com
 
 ---
 
-## 2. Design Tokens
+## 2. Design Tokens & Colour Discipline
+
+### Light Theme Only
+- Sentinel AI uses the light DESIGN.md palette everywhere. Never introduce dark mode or `prefers-color-scheme: dark` overrides.
+- All modals, dialogs, cards, toasts, and surfaces render with `--card` (`#ffffff`), `--bg2` (`#fbfaf8`), or `--bg` (`#f6f4f1`), with `--ink` typography and 1px `--line` borders.
+- All text and interactive states must satisfy WCAG AA contrast (4.5:1 for body text, 3:1 for large text and UI controls).
+
+### Colour Discipline
+- **Neutral by default**: Surfaces, backgrounds, text, borders, icons, and chips use neutral ink and grey tokens.
+- **Primary blue for interaction only**: Links, primary buttons, selected tabs/cards, active states, and focus rings. Never used as decorative background fills.
+- **Semantic colour carries meaning only**:
+  - **Rose (`--rose`)**: Official sanctions hits, dissolved entities, and HIGH risk tier.
+  - **Amber (`--amber`)**: Review queues, PEP exposures, ELEVATED risk tier, and regulatory warnings.
+  - **Emerald (`--emerald`)**: Cleared entities and DEFINITE UBO determinations.
+  - **Grey (`--grey`)**: STANDARD risk tier, data gaps, and unknown holders. STANDARD risk is neutral grey, never green.
+- **Status Badges**: Always rendered as a small subtle badge: a 6px coloured dot plus text in `--ink2` on a neutral `--bg2` pill with a 1px `--line` border. Never use solid saturated fills for badges.
+- **Icon Tiles**: Always neutral: a 40px or 44px `--bg2` tile with 1px `--line` border and a monochrome `--ink2` outline icon. No per-item accent color tiles or decorative backgrounds.
+- **Chips**: Neutral outline chips (`1px solid var(--line)`, text `--ink2`) by default.
 
 ### Backgrounds
 - `--bg`: `#f6f4f1`
@@ -49,15 +66,18 @@ Sentinel AI is a beneficial-ownership and perpetual-KYC application for bank com
   - `--sh2`: `0 4px 16px rgba(34,30,51,.08), 0 2px 5px rgba(34,30,51,.04)`
   - `--sh3`: `0 14px 44px rgba(34,30,51,.14), 0 4px 12px rgba(34,30,51,.06)`
 
-### Signature Gradient
-- `linear-gradient(135deg, #00C8FC 0%, #021AF1 100%)`
-- Matches the shield's own top-to-bottom fade. Used for the avatar, completeness bar fill, assessment orb core, and gradient headline text.
+### Signature Gradient & Headline Style
+- `linear-gradient(135deg, #0284C7 0%, #016EFD 50%, #021AF1 100%)` at weight 800 reserved for two places only: the Sign-In screen and the KYC Initiation hero title. A soft decorative cyan glow (`#00C8FC`, blurred, low-opacity) is placed behind the headline, never applied to the text itself.
+- All other page headings use solid `--ink`, Sora 22px to 24px, weight 700.
 
 ---
 
-## 3. Typography
+## 3. Typography & Numbers
+- **Page Titles**: Sora 22px to 24px, weight 700, solid `--ink`.
+- **Numbers & Figures**: All numbers use tabular figures (`font-variant-numeric: tabular-nums`). Percentages, share counts, and entity/customer IDs in JetBrains Mono.
+- **Entity Names**: Never truncate entity names where they are primary identifiers; wrap to at most two lines instead.
 - **Body and UI**: `Inter`, with system fallbacks (`-apple-system, BlinkMacSystemFont, sans-serif`).
-- **Headings, display numbers, and titles**: `Sora`, weight `700` to `800`, slight negative letter-spacing (`-0.02em`).
+- **Section labels**: `10px` to `11px`, weight 700, uppercase, letter-spacing `.6px`, colour `--ink3`.
 - **Figures, IDs, percentages, timestamps, maths**: `JetBrains Mono`, monospace.
 - **Section labels**: `10px` to `11px`, weight `700`, uppercase, letter-spacing `.6px`, colour `--ink3`.
 

@@ -89,13 +89,33 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Global Focus Ring per Item 10 */
+:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Graph SVG Node Body Styling */
+.nbody {
+  transition: fill 0.22s ease, stroke 0.22s ease, filter 0.22s ease;
+}
+
+.nbody:hover {
+  filter: drop-shadow(rgba(34, 30, 51, 0.18) 0px 6px 14px) !important;
+}
+
 /* Typography Helpers */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 .font-display {
   font-family: 'Sora', sans-serif;
 }
 
 .font-mono-code {
   font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .section-label {
@@ -112,9 +132,29 @@ body {
 }
 
 .sig-gradient-text {
-  background: linear-gradient(135deg, #00C8FC 0%, #021AF1 100%);
+  background: linear-gradient(135deg, #0284C7 0%, #016EFD 50%, #021AF1 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
+}
+
+.sig-gradient-headline {
+  font-weight: 800;
+  background: linear-gradient(135deg, #0284C7 0%, #016EFD 50%, #021AF1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  position: relative;
+}
+
+.sig-gradient-headline::before {
+  content: '';
+  position: absolute;
+  inset: -6px -12px;
+  background: #00C8FC;
+  filter: blur(20px);
+  opacity: 0.18;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: 12px;
 }
 
 /* Animations per DESIGN.md */

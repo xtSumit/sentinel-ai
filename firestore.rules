@@ -20,7 +20,7 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.:]+$');
     }
 
     // Default deny
@@ -38,14 +38,12 @@ service cloud.firestore {
       allow list: if false;
 
       allow create: if isOwner(uid)
-        && isValidId(uid)
         && request.resource.data.keys().hasAll(['uid', 'role'])
         && request.resource.data.uid == uid
         && request.resource.data.role == 'analyst'
         && (!('governanceMode' in request.resource.data) || request.resource.data.governanceMode == 'human-in-the-loop');
 
       allow update: if isOwner(uid)
-        && isValidId(uid)
         && request.resource.data.uid == resource.data.uid
         && request.resource.data.role == resource.data.role
         && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'uid', 'createdAt'])
@@ -61,23 +59,20 @@ service cloud.firestore {
     // 2. Audit collection: audit/{auditId}
     // Any signed-in user can read and create.
     // Create requires actorUid == request.auth.uid, actorType in ['HUMAN', 'SYSTEM', 'AI'], action string, server timestamp.
+    // Timestamp must strictly equal request.time (written via serverTimestamp()).
     // Append-only: no update, no delete.
     match /audit/{auditId} {
       allow read: if isSignedIn();
 
       allow create: if isSignedIn()
         && isValidId(auditId)
-        && request.resource.data.keys().hasAll(['actorUid', 'actorType', 'action'])
+        && request.resource.data.keys().hasAll(['actorUid', 'actorType', 'action', 'timestamp'])
         && request.resource.data.actorUid == request.auth.uid
         && request.resource.data.actorType in ['HUMAN', 'SYSTEM', 'AI']
         && request.resource.data.action is string
         && request.resource.data.action.size() > 0
         && request.resource.data.action.size() <= 500
-        && (
-          !('timestamp' in request.resource.data)
-          || request.resource.data.timestamp == request.time
-          || request.resource.data.timestamp is string
-        );
+        && request.resource.data.timestamp == request.time;
 
       allow update: if false;
       allow delete: if false;
@@ -114,8 +109,18 @@ service cloud.firestore {
     // 4. Events collection: events/{eventId}
     // Readable by signed-in users.
     // Create: supervisors only (for preview injection; prod push endpoint writes server-side via Admin SDK).
+    // New events must always be created with status "pending", and with decidedBy, decidedAt and dismissReason absent.
     // Update: any signed-in user may update only status, decidedBy, decidedAt, dismissReason, only from pending,
-    // and decidedBy must equal request.auth.uid. If status is dismissed, dismissReason is required.
+    // decidedBy must equal request.auth.uid, and decidedAt must equal request.time.
+    // If status is dismissed, dismissReason is mandatory.
+    // Delete: denied.
+    // 4. Events collection: events/{eventId}
+    // Readable by signed-in users.
+    // Create: supervisors only (for preview injection; prod push endpoint writes server-side via Admin SDK).
+    // New events must always be created with status "pending", and with decidedBy, decidedAt and dismissReason absent.
+    // Update: any signed-in user may update only status, decidedBy, decidedByName, decidedAt, dismissReason, only from pending,
+    // decidedBy must equal request.auth.uid, and decidedAt must equal request.time.
+    // If status is dismissed, dismissReason is mandatory.
     // Delete: denied.
     match /events/{eventId} {
       allow read: if isSignedIn();
@@ -123,15 +128,21 @@ service cloud.firestore {
       allow create: if isSupervisor()
         && isValidId(eventId)
         && request.resource.data.keys().hasAll(['customerId', 'groupId', 'changeType', 'status'])
-        && request.resource.data.status in ['pending', 'monitoring', 'accepted', 'dismissed']
+        && (request.resource.data.status == 'pending' || request.resource.data.status == 'PENDING')
+        && !('decidedBy' in request.resource.data)
+        && !('decidedByName' in request.resource.data)
+        && !('decidedAt' in request.resource.data)
+        && !('dismissReason' in request.resource.data)
         && request.resource.data.changeType in ['SHARE_CHANGE', 'NEW_RELATIONSHIP', 'RELATIONSHIP_ENDED', 'ENTITY_DISSOLVED'];
 
       allow update: if isSignedIn()
         && isValidId(eventId)
-        && resource.data.status == 'pending'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedBy', 'decidedAt', 'dismissReason'])
+        && (resource.data.status == 'pending' || resource.data.status == 'PENDING')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'decidedBy', 'decidedByName', 'decidedAt', 'dismissReason'])
         && request.resource.data.status in ['accepted', 'monitoring', 'dismissed']
         && request.resource.data.decidedBy == request.auth.uid
+        && request.resource.data.decidedAt == request.time
+        && (!('decidedByName' in request.resource.data) || (request.resource.data.decidedByName is string && request.resource.data.decidedByName.size() <= 120))
         && (
           request.resource.data.status != 'dismissed'
           || (
@@ -140,6 +151,112 @@ service cloud.firestore {
             && request.resource.data.dismissReason.size() > 0
           )
         );
+
+      allow delete: if false;
+    }
+
+    // 5. Screening Runs collection: screeningRuns/{runId}
+    // Readable by signed-in users.
+    // Created and updated only by user who started it.
+    // Delete: denied.
+    match /screeningRuns/{runId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(runId)
+        && request.resource.data.startedBy == request.auth.uid
+        && request.resource.data.keys().hasAll(['runId', 'customerId', 'groupId', 'triggerType', 'startedBy', 'startedAt']);
+
+      allow update: if isSignedIn()
+        && resource.data.startedBy == request.auth.uid
+        && request.resource.data.startedBy == resource.data.startedBy;
+
+      allow delete: if false;
+    }
+
+    // 6. Cases collection: cases/{caseId}
+    // Readable by signed-in users.
+    // Created by the analyst who ran screening.
+    // Updates limited to state, resolutionNote, closedBy, closedByName, closedAt, only from open to closed.
+    // Four-eyes rule: a CRITICAL case can only be closed by a supervisor, and never by the same person who created it.
+    // Delete: denied.
+    match /cases/{caseId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(caseId)
+        && request.resource.data.analystUid == request.auth.uid
+        && request.resource.data.keys().hasAll(['id', 'caseId', 'type', 'customerId', 'groupId', 'overallStatus', 'state', 'analystUid', 'createdAt'])
+        && request.resource.data.state == 'open'
+        && request.resource.data.type in ['PKYC', 'ONBOARDING']
+        && request.resource.data.overallStatus in ['CRITICAL', 'STANDARD', 'CLEAR'];
+
+      allow update: if isSignedIn()
+        && isValidId(caseId)
+        && (
+          // Normal case closure (Four-eyes rule)
+          (
+            resource.data.state == 'open'
+            && request.resource.data.state == 'closed'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'resolutionNote', 'closedBy', 'closedByName', 'closedAt'])
+            && request.resource.data.closedBy == request.auth.uid
+            && request.resource.data.closedAt == request.time
+            && (!('closedByName' in request.resource.data) || (request.resource.data.closedByName is string && request.resource.data.closedByName.size() <= 120))
+            && request.resource.data.resolutionNote is string
+            && request.resource.data.resolutionNote.size() >= 5
+            && (
+              resource.data.overallStatus != 'CRITICAL'
+              || (
+                isSupervisor()
+                && request.auth.uid != resource.data.analystUid
+              )
+            )
+          )
+          ||
+          // Case Archiving per Requirement 4.3 (Supervisor-only)
+          (
+            isSupervisor()
+            && (!('archived' in resource.data) || resource.data.archived != true)
+            && request.resource.data.archived == true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'archivedBy', 'archivedByName', 'archivedAt', 'archiveReason'])
+            && request.resource.data.archivedBy == request.auth.uid
+            && request.resource.data.archivedAt == request.time
+            && (!('archivedByName' in request.resource.data) || (request.resource.data.archivedByName is string && request.resource.data.archivedByName.size() <= 120))
+            && request.resource.data.archiveReason is string
+            && request.resource.data.archiveReason.size() >= 5
+          )
+          ||
+          // Case Restoring (Supervisor-only)
+          (
+            isSupervisor()
+            && resource.data.archived == true
+            && request.resource.data.archived == false
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['archived', 'restoredBy', 'restoredByName', 'restoredAt', 'restoreReason'])
+            && request.resource.data.restoredBy == request.auth.uid
+            && request.resource.data.restoredAt == request.time
+            && (!('restoredByName' in request.resource.data) || (request.resource.data.restoredByName is string && request.resource.data.restoredByName.size() <= 120))
+            && request.resource.data.restoreReason is string
+            && request.resource.data.restoreReason.size() >= 5
+          )
+        );
+
+      allow delete: if false;
+    }
+
+    // 7. Document Extractions collection: documentExtractions/{extractionId}
+    // Readable by signed-in users.
+    // Created and updated only by the requesting user.
+    // Delete: denied.
+    match /documentExtractions/{extractionId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn()
+        && isValidId(extractionId)
+        && request.resource.data.analystUid == request.auth.uid;
+
+      allow update: if isSignedIn()
+        && resource.data.analystUid == request.auth.uid
+        && request.resource.data.analystUid == resource.data.analystUid;
 
       allow delete: if false;
     }

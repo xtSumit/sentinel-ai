@@ -4,77 +4,53 @@
  * Source data: OpenSanctions (CC BY-NC 4.0)
  */
 
-export interface SanctionsEntry {
-  id: string;
-  name: string;
-  country: string;
-  programme: string;
-  aliases: string[];
-  openSanctionsUrl?: string;
-}
+export type {
+  SanctionsEntry,
+  SanctionsLookupQuery,
+  ISanctionsAdapter
+} from '../engine/sanctionsNormalizer';
 
-export interface SanctionsLookupQuery {
-  name: string;
-  country?: string;
-}
+export {
+  normaliseEntityName,
+  WEAK_ALIASES_DISALLOWED,
+  PreviewSanctionsAdapter
+} from '../engine/sanctionsNormalizer';
 
-export interface ISanctionsAdapter {
-  lookup(query: SanctionsLookupQuery): Promise<SanctionsEntry | null>;
-  attribution(): string;
-  mode(): 'PREVIEW' | 'PRODUCTION';
-}
+import type {
+  SanctionsEntry,
+  SanctionsLookupQuery,
+  ISanctionsAdapter
+} from '../engine/sanctionsNormalizer';
 
-/**
- * Normalises company names for exact/alias matching:
- * - Lowercase & trim
- * - Strips common corporate legal suffixes (Ltd, LLC, SA, GmbH, PJSC, PAO, JSC, Pte, Inc, Corp)
- * - Strips punctuation
- */
-export function normaliseEntityName(name: string): string {
-  if (!name) return '';
-  let clean = name.toLowerCase().trim();
-  // Strip punctuation except spaces and alphanumeric
-  clean = clean.replace(/[.,\-_/\\()[\]'"`]/g, ' ');
-  // Collapse whitespace
-  clean = clean.replace(/\s+/g, ' ').trim();
-  // Strip legal suffixes at end of string or standalone tokens
-  const suffixes = [
-    'pao', 'jsc', 'pjsc', 'ltd', 'limited', 'llc', 'sa', 's a', 'gmbh', 
-    'pte ltd', 'pte', 'inc', 'incorporated', 'corp', 'corporation',
-    's a r l', 'sarl', 'pvt ltd', 'pvt', 'joint stock company'
-  ];
-  for (const suffix of suffixes) {
-    const regex = new RegExp(`(^|\\s)${suffix}(\\s|$)`, 'g');
-    clean = clean.replace(regex, ' ').replace(/\s+/g, ' ').trim();
-  }
-  return clean;
-}
+import {
+  normaliseEntityName,
+  WEAK_ALIASES_DISALLOWED,
+  PreviewSanctionsAdapter
+} from '../engine/sanctionsNormalizer';
+
 
 /**
- * Weak aliases that must NEVER trigger matches because they are too generic.
+ * PRODUCTION ADAPTER
+ * Executes parameterised BigQuery queries against BQ_SANCTIONS_TABLE.
+ * Strict SQL injection defence: uses named queryParameters, never string concatenation.
+ * Fails closed if configuration is missing or query fails.
  */
-const WEAK_ALIASES_DISALLOWED = new Set(['scf', 'scf group', 'scf corp', 'scf ltd']);
+export class ProductionSanctionsAdapter implements ISanctionsAdapter {
+  private tableName: string;
+  private projectId: string;
 
-/**
- * PREVIEW ADAPTER
- * Contains fixture data for Sovcomflot (NK-VDEKGF5ZgHAkye4kGuUXs3)
- */
-export class PreviewSanctionsAdapter implements ISanctionsAdapter {
-  private static readonly FIXTURE_ENTRIES: SanctionsEntry[] = [
-    {
-      id: 'NK-VDEKGF5ZgHAkye4kGuUXs3',
-      name: 'Sovcomflot',
-      country: 'Russia',
-      programme: 'Russia-related sanctions, designated by the US (OFAC), the UK, the EU and Australia',
-      aliases: [
-        'JSC Sovcomflot',
-        'PAO Sovcomflot',
-        'Joint Stock Company Sovcomflot',
-        'ПАО Совкомфлот'
-      ],
-      openSanctionsUrl: 'https://www.opensanctions.org/entities/NK-VDEKGF5ZgHAkye4kGuUXs3/'
+  constructor() {
+    const table = process.env.BQ_SANCTIONS_TABLE;
+    const project = process.env.GOOGLE_CLOUD_PROJECT;
+    if (!table) {
+      throw new Error('[ProductionSanctionsAdapter] BQ_SANCTIONS_TABLE environment variable is required in PRODUCTION mode. Failing closed.');
     }
-  ];
+    if (!project) {
+      throw new Error('[ProductionSanctionsAdapter] GOOGLE_CLOUD_PROJECT environment variable is required in PRODUCTION mode. Failing closed.');
+    }
+    this.tableName = table;
+    this.projectId = project;
+  }
 
   async lookup(query: SanctionsLookupQuery): Promise<SanctionsEntry | null> {
     const rawQueryName = query.name.toLowerCase().trim();
@@ -85,73 +61,86 @@ export class PreviewSanctionsAdapter implements ISanctionsAdapter {
     const normQuery = normaliseEntityName(query.name);
     if (!normQuery) return null;
 
-    for (const entry of PreviewSanctionsAdapter.FIXTURE_ENTRIES) {
-      // Check primary name
-      if (normaliseEntityName(entry.name) === normQuery) {
-        return entry;
-      }
-      // Check aliases
-      for (const alias of entry.aliases) {
-        const normAlias = normaliseEntityName(alias);
-        if (normAlias === normQuery) {
-          return entry;
-        }
-      }
-    }
+    try {
+      const { GoogleAuth } = await import(/* @vite-ignore */ 'google-auth-library');
+      const auth = new GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/bigquery', 'https://www.googleapis.com/auth/cloud-platform']
+      });
+      const client = await auth.getClient();
 
-    return null;
+      // Parameterised BigQuery query (OWASP Top 10 strict query parameterisation)
+      const sql = `SELECT id, name, country, programme, aliases, openSanctionsUrl FROM \`${this.tableName}\` WHERE LOWER(name) = @cleanName OR @cleanName IN UNNEST(aliases) LIMIT 1`;
+
+      const requestBody = {
+        query: sql,
+        useLegacySql: false,
+        parameterMode: 'NAMED',
+        queryParameters: [
+          {
+            name: 'cleanName',
+            parameterType: { type: 'STRING' },
+            parameterValue: { value: normQuery }
+          }
+        ]
+      };
+
+      const url = `https://bigquery.googleapis.com/bigquery/v2/projects/${this.projectId}/queries`;
+      const res: any = await client.request({
+        url,
+        method: 'POST',
+        data: requestBody
+      });
+
+      const rows = res.data?.rows;
+      if (!rows || rows.length === 0) {
+        return null;
+      }
+
+      const fields = res.data?.schema?.fields || [];
+      const firstRowValues = rows[0]?.f || [];
+      const getVal = (fieldName: string) => {
+        const idx = fields.findIndex((f: any) => f.name === fieldName);
+        if (idx === -1 || !firstRowValues[idx]) return undefined;
+        return firstRowValues[idx].v;
+      };
+
+      const id = String(getVal('id') || `BQ-${Date.now()}`);
+      const name = String(getVal('name') || query.name);
+      const country = String(getVal('country') || query.country || 'Unknown');
+      const programme = String(getVal('programme') || 'Designated Sanctions Programme');
+      const openSanctionsUrl = getVal('openSanctionsUrl') ? String(getVal('openSanctionsUrl')) : undefined;
+
+      let aliases: string[] = [];
+      const rawAliases = getVal('aliases');
+      if (Array.isArray(rawAliases)) {
+        aliases = rawAliases.map((a: any) => (typeof a === 'object' && a?.v ? a.v : String(a)));
+      }
+
+      return {
+        id,
+        name,
+        country,
+        programme,
+        aliases,
+        openSanctionsUrl
+      };
+    } catch (err: any) {
+      console.error(`[ProductionSanctionsAdapter] BigQuery execution failure: ${err?.message}`);
+      throw new Error(`[ProductionSanctionsAdapter] BigQuery parameterised query failed for table ${this.tableName}: ${err?.message}`);
+    }
   }
 
   attribution(): string {
     return 'Sanctions data: OpenSanctions (CC BY-NC 4.0)';
   }
 
-  mode(): 'PREVIEW' | 'PRODUCTION' {
-    return 'PREVIEW';
-  }
-}
-
-/**
- * PRODUCTION ADAPTER
- * Executes parameterised BigQuery queries against BQ_SANCTIONS_TABLE.
- * Fails closed if configuration is missing.
- */
-export class ProductionSanctionsAdapter implements ISanctionsAdapter {
-  private tableName: string;
-
-  constructor() {
-    const table = process.env.BQ_SANCTIONS_TABLE;
-    if (!table) {
-      throw new Error('[ProductionSanctionsAdapter] BQ_SANCTIONS_TABLE environment variable is required in PRODUCTION mode. Failing closed.');
-    }
-    this.tableName = table;
-  }
-
-  async lookup(query: SanctionsLookupQuery): Promise<SanctionsEntry | null> {
-    const rawQueryName = query.name.toLowerCase().trim();
-    if (WEAK_ALIASES_DISALLOWED.has(rawQueryName)) {
-      return null;
-    }
-
-    // In production, queries the BigQuery table using parameterised bindings
-    // Example query structure:
-    // SELECT id, name, aliases, countries, sanctions FROM `@tableName`
-    // WHERE LOWER(name) = @cleanName OR @cleanName IN UNNEST(aliases)
-    // For local evaluation if BigQuery SDK is not instantiated, fails closed per Custom Instructions §11.
-    throw new Error(`[ProductionSanctionsAdapter] BigQuery connection not established for table ${this.tableName}. Fail-closed in PRODUCTION mode.`);
-  }
-
-  attribution(): string {
-    return 'Sanctions data: OpenSanctions (CC BY-NC 4.0)';
-  }
-
-  mode(): 'PRODUCTION' | 'PRODUCTION' {
+  mode(): 'PRODUCTION' {
     return 'PRODUCTION';
   }
 }
 
 export function getSanctionsAdapter(): ISanctionsAdapter {
-  const mode = process.env.APP_MODE === 'PRODUCTION' ? 'PRODUCTION' : 'PREVIEW';
+  const mode = process.env.APP_MODE?.toLowerCase() === 'production' ? 'PRODUCTION' : 'PREVIEW';
   if (mode === 'PRODUCTION') {
     return new ProductionSanctionsAdapter();
   }

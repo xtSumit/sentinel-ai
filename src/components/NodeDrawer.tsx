@@ -1,26 +1,52 @@
-import React from 'react';
-import { X, AlertTriangle, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
-import { CorporateGroupSeed } from '../types/bods';
+import React, { useState, useEffect } from 'react';
+import { X, AlertTriangle, ArrowUpRight, ArrowDownLeft, FileText, ArrowLeft, Sparkles } from 'lucide-react';
+import { BodsPerson, CorporateGroupSeed } from '../types/bods';
 import {
   formatEffectiveRange,
   formatSharePct,
   UboResolutionResult,
 } from '../engine/uboEngine';
 import { SelectedGraphNode } from './OwnershipGraph';
+import { DocumentIntakePanel } from './DocumentIntakePanel';
+import { ExtractedShareholderRow } from '../types/documentAi';
+import { writeAuditRecord } from '../lib/firebase';
+import { useAuth } from '../context/AuthContext';
 
 interface NodeDrawerProps {
   selected: SelectedGraphNode | null;
   group: CorporateGroupSeed;
+  customerId?: string;
   resolution: UboResolutionResult;
   onClose: () => void;
+  onOpenDossier?: (person: BodsPerson) => void;
+  screenedPersonIds?: Set<string>;
+  initiallyRequestDocuments?: boolean;
+  onConfirmExtraction?: (data: {
+    gapId: string;
+    extractionId: string;
+    fileName: string;
+    confirmedRows: ExtractedShareholderRow[];
+  }) => void;
 }
 
 export const NodeDrawer: React.FC<NodeDrawerProps> = ({
   selected,
   group,
+  customerId,
   resolution,
   onClose,
+  onOpenDossier,
+  screenedPersonIds,
+  initiallyRequestDocuments,
+  onConfirmExtraction
 }) => {
+  const { user, profile } = useAuth();
+  const [isRequestingDocs, setIsRequestingDocs] = useState<boolean>(Boolean(initiallyRequestDocuments));
+
+  useEffect(() => {
+    setIsRequestingDocs(Boolean(initiallyRequestDocuments));
+  }, [initiallyRequestDocuments, selected?.record.id]);
+
   if (!selected) return null;
 
   const getNodeLabel = (id: string): string => {
@@ -92,136 +118,243 @@ export const NodeDrawer: React.FC<NodeDrawerProps> = ({
 
       {/* Scrollable Body */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {/* Amber Note Box for PEP, Data Gaps, or Dissolved Status */}
-        {selected.kind === 'person' && selected.record.pepStatus !== 'none' && (
-          <div
-            className="p-3 rounded-xl flex items-start gap-2.5 text-xs"
-            style={{
-              backgroundColor: 'var(--amber-s)',
-              border: '1px solid rgba(217, 119, 6, 0.28)',
-              color: 'var(--amber)',
-            }}
-          >
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold uppercase tracking-wide text-[10px] mb-0.5">
-                Politically Exposed Person ({selected.record.pepStatus.toUpperCase()})
-              </div>
-              <div style={{ color: 'var(--ink)' }}>
-                {selected.record.pepRoleDescription ||
-                  'Enhanced Due Diligence required under multi-layer PEP control policy.'}
-              </div>
-            </div>
+        {isRequestingDocs ? (
+          <div className="space-y-3">
+            <button
+              type="button"
+              onClick={() => setIsRequestingDocs(false)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-[var(--primary)] hover:underline cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back to Node Attributes</span>
+            </button>
+
+            <DocumentIntakePanel
+              gap={selected.record}
+              groupId={group.id}
+              customerId={customerId || `CUS-2026-${group.id.slice(-4)}`}
+              groupName={group.name}
+              onClose={() => setIsRequestingDocs(false)}
+              onConfirmExtraction={(data) => {
+                setIsRequestingDocs(false);
+                onConfirmExtraction?.(data);
+              }}
+            />
           </div>
-        )}
-
-        {selected.kind === 'unspecified' && (
-          <div
-            className="p-3 rounded-xl flex items-start gap-2.5 text-xs"
-            style={{
-              backgroundColor: 'var(--amber-s)',
-              border: '1px solid rgba(217, 119, 6, 0.28)',
-              color: 'var(--amber)',
-            }}
-          >
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold uppercase tracking-wide text-[10px] mb-0.5">
-                Ownership Opacity Gap · -{selected.record.estimatedImpactOnCompleteness}% Completeness
+        ) : (
+          <>
+            {/* Amber Note Box for PEP, Data Gaps, or Dissolved Status */}
+            {selected.kind === 'person' && selected.record.pepStatus !== 'none' && (
+              <div
+                className="p-3 rounded-xl flex items-start gap-2.5 text-xs"
+                style={{
+                  backgroundColor: 'var(--amber-s)',
+                  border: '1px solid rgba(217, 119, 6, 0.28)',
+                  color: 'var(--amber)',
+                }}
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold uppercase tracking-wide text-[10px] mb-0.5">
+                    Politically Exposed Person ({selected.record.pepStatus.toUpperCase()})
+                  </div>
+                  <div style={{ color: 'var(--ink)' }}>
+                    {selected.record.pepRoleDescription ||
+                      'Enhanced Due Diligence required under multi-layer PEP control policy.'}
+                  </div>
+                </div>
               </div>
-              <div style={{ color: 'var(--ink)' }}>{selected.record.description}</div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {selected.kind === 'entity' && selected.record.status === 'dissolved' && (
-          <div
-            className="p-3 rounded-xl flex items-start gap-2.5 text-xs"
-            style={{
-              backgroundColor: 'var(--rose-s)',
-              border: '1px solid rgba(225, 29, 72, 0.25)',
-              color: 'var(--rose)',
-            }}
-          >
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-            <div>
-              <div className="font-bold uppercase tracking-wide text-[10px] mb-0.5">
-                Dissolved Legal Entity — Excluded from Active UBO Chains
+            {selected.kind === 'unspecified' && (
+              <div
+                className="p-3 rounded-xl flex items-start gap-2.5 text-xs"
+                style={{
+                  backgroundColor: 'var(--amber-s)',
+                  border: '1px solid rgba(217, 119, 6, 0.28)',
+                  color: 'var(--amber)',
+                }}
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold uppercase tracking-wide text-[10px] mb-0.5">
+                    Ownership Opacity Gap · -{selected.record.estimatedImpactOnCompleteness}% Completeness
+                  </div>
+                  <div style={{ color: 'var(--ink)' }}>{selected.record.description}</div>
+                </div>
               </div>
-              <div style={{ color: 'var(--ink)' }}>
-                This entity is struck off / dissolved and is skipped during deterministic effective
-                ownership multiplication, while remaining visible for historical audit completeness.
+            )}
+
+            {selected.kind === 'implicitGap' && (
+              <div
+                className="p-3 rounded-xl flex items-start gap-2.5 text-xs"
+                style={{
+                  backgroundColor: 'var(--grey-s)',
+                  border: '1.5px dashed var(--grey)',
+                  color: 'var(--ink)',
+                }}
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--amber)' }} />
+                <div>
+                  <div className="font-bold uppercase tracking-wide text-[10px] mb-0.5" style={{ color: 'var(--amber)' }}>
+                    Unaccounted Ownership Residue · -{selected.record.effectOnRootPct}% Effect on Root
+                  </div>
+                  <div style={{ color: 'var(--ink)' }}>{selected.record.description}</div>
+                </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* Key-Value Rows */}
-        <div
-          className="rounded-xl p-3 space-y-2.5 text-xs"
-          style={{
-            backgroundColor: 'var(--bg2)',
-            border: '1px solid var(--line)',
-          }}
-        >
-          <div className="section-label mb-1">Attributes</div>
+            {/* Request Documents Action Button for Gaps */}
+            {(selected.kind === 'unspecified' || selected.kind === 'implicitGap') && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsRequestingDocs(true);
+                    if (user) {
+                      await writeAuditRecord({
+                        actorUid: user.uid,
+                        actorType: 'HUMAN',
+                        actorName: profile?.displayName || 'Analyst',
+                        action: 'DOCUMENT_REQUESTED',
+                        summary: `Analyst requested documentary evidence for opacity gap: ${selected.record.label}.`,
+                        groupId: group.id,
+                        customerId: customerId || `CUS-2026-${group.id.slice(-4)}`,
+                        details: { gapId: selected.record.id }
+                      });
+                    }
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl text-xs font-bold text-white flex items-center justify-center gap-2 shadow-sm transition-transform active:scale-95 cursor-pointer focus-visible:ring-2"
+                  style={{ backgroundColor: 'var(--primary)' }}
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Request documents</span>
+                </button>
+              </div>
+            )}
 
-          <KeyValueRow label="BODS Statement ID" value={selected.record.id} mono />
+            {selected.kind === 'entity' && selected.record.status === 'dissolved' && (
+              <div
+                className="p-3 rounded-xl flex items-start gap-2.5 text-xs"
+                style={{
+                  backgroundColor: 'var(--rose-s)',
+                  border: '1px solid rgba(225, 29, 72, 0.25)',
+                  color: 'var(--rose)',
+                }}
+              >
+                <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold uppercase tracking-wide text-[10px] mb-0.5">
+                    Dissolved Legal Entity — Excluded from Active UBO Chains
+                  </div>
+                  <div style={{ color: 'var(--ink)' }}>
+                    This entity is struck off / dissolved and is skipped during deterministic effective
+                    ownership multiplication, while remaining visible for historical audit completeness.
+                  </div>
+                </div>
+              </div>
+            )}
 
-          {selected.kind === 'entity' && (
-            <>
-              <KeyValueRow label="Entity Type" value={selected.record.entityType.toUpperCase()} />
-              <KeyValueRow
-                label="Jurisdiction"
-                value={`${selected.record.countryFlag} ${selected.record.jurisdictionCode}`}
-              />
-              <KeyValueRow label="Registration ID" value={selected.record.registrationId} mono />
-              <KeyValueRow label="Status" value={selected.record.status.toUpperCase()} mono />
-              <KeyValueRow label="Registered Address" value={selected.record.registeredAddress} />
-              <KeyValueRow label="Primary Source" value={selected.record.source} />
-              <KeyValueRow label="As-Of Date" value={selected.record.asOfDate} mono />
-            </>
-          )}
+            {/* Key-Value Rows */}
+            <div
+              className="rounded-xl p-3 space-y-2.5 text-xs"
+              style={{
+                backgroundColor: 'var(--bg2)',
+                border: '1px solid var(--line)',
+              }}
+            >
+              <div className="section-label mb-1">Attributes</div>
 
-          {selected.kind === 'person' && (
-            <>
-              <KeyValueRow
-                label="Nationality"
-                value={`${selected.record.flag} ${selected.record.nationality}`}
-              />
-              <KeyValueRow
-                label="Year of Birth"
-                value={String(selected.record.yearOfBirth)}
-                mono
-              />
-              <KeyValueRow
-                label="PEP Classification"
-                value={selected.record.pepStatus.toUpperCase()}
-                mono
-              />
-              {selected.record.pepRoleDescription && (
-                <KeyValueRow label="Role / Mandate" value={selected.record.pepRoleDescription} />
-              )}
-              {selected.resolved && (
+              <KeyValueRow label="BODS Statement ID" value={selected.record.id} mono />
+
+              {selected.kind === 'entity' && (
                 <>
+                  <KeyValueRow label="Entity Type" value={selected.record.entityType.toUpperCase()} />
                   <KeyValueRow
-                    label={`Classification (${resolution.thresholdPct}%)`}
-                    value={selected.resolved.classification}
-                    mono
+                    label="Jurisdiction"
+                    value={`${selected.record.countryFlag} ${selected.record.jurisdictionCode}`}
                   />
-                  <KeyValueRow
-                    label="Effective Root Stake"
-                    value={formatEffectiveRange(
-                      selected.resolved.totalMinPct,
-                      selected.resolved.totalMaxPct
-                    )}
-                    mono
-                  />
+                  <KeyValueRow label="Registration ID" value={selected.record.registrationId} mono />
+                  <KeyValueRow label="Status" value={selected.record.status.toUpperCase()} mono />
+                  <KeyValueRow label="Registered Address" value={selected.record.registeredAddress} />
+                  <KeyValueRow label="Primary Source" value={selected.record.source} />
+                  <KeyValueRow label="As-Of Date" value={selected.record.asOfDate} mono />
                 </>
               )}
-              <KeyValueRow label="Synthetic Flag" value="synthetic: true (Fictional)" mono />
-            </>
-          )}
+
+              {selected.kind === 'person' && (
+                <>
+                  <KeyValueRow
+                    label="Nationality"
+                    value={`${selected.record.flag} ${selected.record.nationality}`}
+                  />
+                  <KeyValueRow
+                    label="Year of Birth"
+                    value={String(selected.record.yearOfBirth)}
+                    mono
+                  />
+                  <KeyValueRow
+                    label="PEP Classification"
+                    value={selected.record.pepStatus.toUpperCase()}
+                    mono
+                  />
+                  {selected.record.pepRoleDescription && (
+                    <KeyValueRow label="Role / Mandate" value={selected.record.pepRoleDescription} />
+                  )}
+                  {selected.resolved && (
+                    <>
+                      <KeyValueRow
+                        label={`Classification (${resolution.thresholdPct}%)`}
+                        value={selected.resolved.classification}
+                        mono
+                      />
+                      <KeyValueRow
+                        label="Effective Root Stake"
+                        value={formatEffectiveRange(
+                          selected.resolved.totalMinPct,
+                          selected.resolved.totalMaxPct
+                        )}
+                        mono
+                      />
+                    </>
+                  )}
+                  <KeyValueRow label="Synthetic Flag" value="synthetic: true (Fictional)" mono />
+                  {onOpenDossier && (
+                    <div className="pt-2">
+                      {(() => {
+                        const isScreened = screenedPersonIds ? screenedPersonIds.has(selected.record.id) : false;
+                        return (
+                          <div title={!isScreened ? 'Run screening first' : 'View Adverse Media Dossier'} className="w-full">
+                            <button
+                              type="button"
+                              disabled={!isScreened}
+                              title={isScreened ? 'View Adverse Media Dossier' : 'Run screening first'}
+                              onClick={() => {
+                                if (isScreened) {
+                                  onOpenDossier(selected.record);
+                                }
+                              }}
+                              className={`w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border transition-all focus-visible:ring-2 ${
+                                isScreened
+                                  ? 'cursor-pointer hover:bg-[var(--bg2)] text-[var(--primary)]'
+                                  : 'cursor-not-allowed opacity-40 text-[var(--ink3)]'
+                              }`}
+                              style={{
+                                backgroundColor: 'var(--card)',
+                                borderColor: 'var(--line)',
+                              }}
+                            >
+                              <Sparkles className="w-3.5 h-3.5" />
+                              <span>Adverse media dossier</span>
+                              <ArrowUpRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </>
+              )}
 
           {selected.kind === 'unspecified' && (
             <>
@@ -233,6 +366,35 @@ export const NodeDrawer: React.FC<NodeDrawerProps> = ({
               />
               <KeyValueRow label="Source" value={selected.record.source} />
               <KeyValueRow label="As-Of Date" value={selected.record.asOfDate} mono />
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsRequestingDocs(true);
+                    if (user) {
+                      writeAuditRecord({
+                        actorUid: user.uid,
+                        actorType: 'HUMAN',
+                        actorName: profile?.displayName || 'Analyst',
+                        action: 'DOCUMENT_REQUESTED',
+                        summary: `Requested documents for data gap: ${selected.record.label}.`,
+                        groupId: group.id,
+                        customerId: customerId || `CUS-2026-${group.id.slice(-4)}`,
+                        details: { gapId: selected.record.id, kind: 'unspecified' }
+                      }).catch(console.error);
+                    }
+                  }}
+                  className="w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border transition-all active:scale-95 cursor-pointer shadow-sm focus-visible:ring-2"
+                  style={{
+                    backgroundColor: 'var(--primary)',
+                    borderColor: 'var(--primary)',
+                    color: '#ffffff',
+                  }}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Request documents</span>
+                </button>
+              </div>
             </>
           )}
 
@@ -255,6 +417,35 @@ export const NodeDrawer: React.FC<NodeDrawerProps> = ({
                 label="Statutory Context"
                 value="May include holdings below statutory disclosure threshold"
               />
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setIsRequestingDocs(true);
+                    if (user) {
+                      writeAuditRecord({
+                        actorUid: user.uid,
+                        actorType: 'HUMAN',
+                        actorName: profile?.displayName || 'Analyst',
+                        action: 'DOCUMENT_REQUESTED',
+                        summary: `Requested documents for data gap: ${selected.record.label}.`,
+                        groupId: group.id,
+                        customerId: customerId || `CUS-2026-${group.id.slice(-4)}`,
+                        details: { gapId: selected.record.id, kind: 'implicitGap' }
+                      }).catch(console.error);
+                    }
+                  }}
+                  className="w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 border transition-all active:scale-95 cursor-pointer shadow-sm focus-visible:ring-2"
+                  style={{
+                    backgroundColor: 'var(--primary)',
+                    borderColor: 'var(--primary)',
+                    color: '#ffffff',
+                  }}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Request documents</span>
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -347,9 +538,11 @@ export const NodeDrawer: React.FC<NodeDrawerProps> = ({
             </div>
           )}
         </div>
-      </div>
-    </div>
-  );
+      </>
+    )}
+  </div>
+</div>
+);
 };
 
 const KeyValueRow: React.FC<{ label: string; value: string; mono?: boolean }> = ({

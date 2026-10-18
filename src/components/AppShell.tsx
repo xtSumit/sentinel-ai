@@ -26,6 +26,7 @@ interface AppShellProps {
   activeRailItem: string;
   onSelectRailItem: (id: string) => void;
   pendingAlertsCount?: number;
+  pendingCasesCount?: number;
   children: React.ReactNode;
 }
 
@@ -49,13 +50,37 @@ export const AppShell: React.FC<AppShellProps> = ({
   activeRailItem,
   onSelectRailItem,
   pendingAlertsCount = 0,
+  pendingCasesCount = 0,
   children
 }) => {
-  const { user, profile, signOut, setGovernanceMode, isSupervisor } = useAuth();
+  const { user, profile, signOut, setGovernanceMode, switchRole, isSupervisor } = useAuth();
   const [hoveredRail, setHoveredRail] = useState<string | null>(null);
   const [showGovTooltip, setShowGovTooltip] = useState(false);
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement>(null);
+
+  const [appMode, setAppMode] = useState<'preview' | 'production'>(() => {
+    const envMode = (import.meta as any).env?.VITE_APP_MODE?.toLowerCase();
+    return envMode === 'production' ? 'production' : 'preview';
+  });
+  const [integrations, setIntegrations] = useState<string[]>([]);
+  const [showModeTooltip, setShowModeTooltip] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/system/mode')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.mode) {
+          setAppMode(data.mode.toLowerCase());
+        }
+        if (Array.isArray(data?.integrations)) {
+          setIntegrations(data.integrations);
+        }
+      })
+      .catch(() => {
+        // Fallback to initial env / preview
+      });
+  }, []);
 
   // Close avatar menu on outside click
   useEffect(() => {
@@ -84,7 +109,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     { id: 'kyc-initiation', label: 'KYC Initiation', icon: ShieldAlert, enabled: true },
     { id: 'beneficial-ownership', label: 'Beneficial Ownership', icon: Network, enabled: true },
     { id: 'alerts', label: 'Alerts', icon: Bell, enabled: true, badgeCount: pendingAlertsCount },
-    { id: 'cases', label: 'Cases (Phase 4)', icon: Briefcase, enabled: false },
+    { id: 'cases', label: 'Cases', icon: Briefcase, enabled: true, badgeCount: pendingCasesCount },
   ];
 
   const userInitials = profile?.displayName
@@ -143,22 +168,84 @@ export const AppShell: React.FC<AppShellProps> = ({
 
         {/* Right: Mode pill, Governance toggle, Topbar Avatar Dropdown */}
         <div className="flex items-center gap-3">
-          {/* Mode Pill */}
-          <div
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium"
-            style={{
-              backgroundColor: 'var(--bg2)',
-              borderRadius: '20px',
-              border: '1px solid var(--line)',
-              color: 'var(--ink2)',
-            }}
-          >
-            <span
-              className="w-2 h-2 rounded-full inline-block"
-              style={{ backgroundColor: 'var(--amber)' }}
-            />
-            <span>Preview · simulated feeds</span>
-          </div>
+          {/* Mode Pill and Synthetic Data Chip (hidden in production environment per prompt directive) */}
+          {appMode !== 'production' && (
+            <div
+              className="relative flex items-center gap-2"
+              onMouseEnter={() => setShowModeTooltip(true)}
+              onMouseLeave={() => setShowModeTooltip(false)}
+            >
+              <div
+                className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold cursor-pointer transition-all"
+                style={{
+                  backgroundColor: 'var(--bg2)',
+                  borderRadius: '20px',
+                  border: '1px solid var(--line)',
+                  color: 'var(--ink2)',
+                }}
+              >
+                <span
+                  className="w-2 h-2 rounded-full inline-block animate-pulse"
+                  style={{ backgroundColor: 'var(--amber)' }}
+                />
+                <span>Preview · simulated feeds</span>
+              </div>
+
+              {/* Synthetic Data Chip */}
+              <div
+                className="px-2.5 py-1 text-xs font-semibold rounded-full flex items-center gap-1.5"
+                style={{
+                  backgroundColor: 'var(--bg2)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--ink2)',
+                }}
+                title="All personal and corporate data in this application is synthetic compliance test data."
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                <span>Synthetic data</span>
+              </div>
+
+              {/* Mode Tooltip */}
+              {showModeTooltip && (
+                <div
+                  className="absolute right-0 top-full mt-2 w-72 p-3 text-xs z-50 shadow-xl"
+                  style={{
+                    backgroundColor: 'var(--bg1)',
+                    border: '1px solid var(--line)',
+                    borderRadius: '10px',
+                    color: 'var(--ink1)',
+                  }}
+                >
+                  <div className="flex items-center gap-2 mb-2 pb-1.5 border-b" style={{ borderColor: 'var(--line)' }}>
+                    <span
+                      className="w-2 h-2 rounded-full"
+                      style={{ backgroundColor: 'var(--amber)' }}
+                    />
+                    <span className="font-semibold text-xs uppercase tracking-wider" style={{ color: 'var(--amber)' }}>
+                      Preview Simulation Mode
+                    </span>
+                  </div>
+                  <div className="text-[11px] mb-2 font-medium" style={{ color: 'var(--ink2)' }}>
+                    Running in local/preview mode with simulated feeds and fallback models:
+                  </div>
+                  <ul className="space-y-1 text-[11px]">
+                    {(integrations.length > 0 ? integrations : [
+                      'Preview Gemini Flash (API Key)',
+                      'Simulated Registry Feed (Direct Firestore)',
+                      'OpenSanctions Fixture Screening',
+                      'Preview Document Parser (Gemini)',
+                      'Cloud Firestore (Named instance)'
+                    ]).map((item, idx) => (
+                      <li key={idx} className="flex items-center gap-1.5">
+                        <span className="text-[9px]" style={{ color: 'var(--amber)' }}>●</span>
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Governance Toggle */}
           <div
@@ -269,6 +356,25 @@ export const AppShell: React.FC<AppShellProps> = ({
                       {profile?.role || 'analyst'}
                     </span>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const targetRole = isSupervisor ? 'analyst' : 'supervisor';
+                      await switchRole(targetRole);
+                    }}
+                    className="w-full mt-1 py-1 px-2.5 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--bg2)',
+                      border: '1px solid var(--line)',
+                      color: 'var(--ink)'
+                    }}
+                  >
+                    <span className="text-[11px]" style={{ color: 'var(--ink2)' }}>Switch RBAC Role</span>
+                    <span className="text-[10px] font-mono font-bold" style={{ color: isSupervisor ? 'var(--primary)' : 'var(--amber)' }}>
+                      {isSupervisor ? '→ Analyst' : '→ Supervisor'}
+                    </span>
+                  </button>
 
                   <div className="flex items-center justify-between text-xs">
                     <span style={{ color: 'var(--ink3)' }}>Governance:</span>

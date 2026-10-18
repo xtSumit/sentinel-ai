@@ -19,18 +19,22 @@ import { KycInitiationView } from './components/KycInitiationView';
 import { AlertsView, AlertEventRecord } from './components/AlertsView';
 import { SignInView } from './components/SignInView';
 import { MaterialityModal } from './components/MaterialityModal';
+import { CasesView } from './components/CasesView';
+import { AdverseMediaDossierView } from './components/AdverseMediaDossierView';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import { db, writeAuditRecord } from './lib/firebase';
+import { db, writeAuditRecord, handleFirestoreError, OperationType } from './lib/firebase';
 import {
   collection,
   onSnapshot,
   query,
   doc,
-  updateDoc
+  updateDoc,
+  serverTimestamp
 } from 'firebase/firestore';
 import { applyEventToGroup, evaluateMateriality, MaterialityEvaluation } from './engine/materialityEngine';
-import { CorporateGroupSeed } from './types/bods';
-import { Loader2, Radio, ArrowRight, X, CheckCircle2 } from 'lucide-react';
+import { executeScreeningWorkflow, ComplianceCaseRecord } from './engine/screeningOrchestrator';
+import { CorporateGroupSeed, BodsPerson } from './types/bods';
+import { Loader2, Radio, ArrowRight, X, CheckCircle2, Briefcase, AlertTriangle } from 'lucide-react';
 import { SENTINEL_MARK_64 } from './brand-assets';
 
 function MainApp() {
@@ -38,13 +42,21 @@ function MainApp() {
   const groups = bodsRepository.getGroups();
 
   // Navigation State
-  const [activeRailItem, setActiveRailItem] = useState<'kyc-initiation' | 'beneficial-ownership' | 'alerts'>('beneficial-ownership');
+  const [activeRailItem, setActiveRailItem] = useState<'kyc-initiation' | 'beneficial-ownership' | 'alerts' | 'cases'>('beneficial-ownership');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [targetCaseId, setTargetCaseId] = useState<string | null>(null);
+  const [caseToast, setCaseToast] = useState<{
+    caseId: string;
+    groupName: string;
+    triggerType: string;
+  } | null>(null);
+  const [viewingDossierPerson, setViewingDossierPerson] = useState<BodsPerson | null>(null);
 
   // Firestore Data State
   const [onboardedCustomerMap, setOnboardedCustomerMap] = useState<Record<string, string>>({}); // groupKey -> customerId
   const [events, setEvents] = useState<AlertEventRecord[]>([]);
+  const [cases, setCases] = useState<ComplianceCaseRecord[]>([]);
 
   // Materiality Review State
   const [reviewingEvent, setReviewingEvent] = useState<AlertEventRecord | null>(null);
@@ -53,23 +65,71 @@ function MainApp() {
   // Toast State
   const [activeToast, setActiveToast] = useState<{ id: string; message: string; event: AlertEventRecord } | null>(null);
   const [generalToast, setGeneralToast] = useState<string | null>(null);
+  const [caseErrorToast, setCaseErrorToast] = useState<{
+    message: string;
+    onRetry: () => void;
+  } | null>(null);
+  const [activeScreeningRun, setActiveScreeningRun] = useState<{
+    triggerEvent: AlertEventRecord;
+    evaluation: any;
+    timestamp: number;
+  } | null>(null);
+  const [neutralToast, setNeutralToast] = useState<{ message: string } | null>(null);
 
   const initialListenRef = useRef(false);
+  const seenPendingIdsRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (neutralToast) {
+      const timer = setTimeout(() => setNeutralToast(null), 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [neutralToast]);
+
+  // Real-time listener for cases
+  useEffect(() => {
+    if (!user) return;
+    const casesCol = collection(db, 'cases');
+    const unsubscribe = onSnapshot(
+      casesCol,
+      (snapshot) => {
+        const list: ComplianceCaseRecord[] = [];
+        snapshot.forEach((snap) => {
+          list.push(snap.data() as ComplianceCaseRecord);
+        });
+        setCases(list);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'cases');
+      }
+    );
+    return () => unsubscribe();
+  }, [user]);
+
+  const openCasesCount = useMemo(() => {
+    return cases.filter((c) => c.state === 'open').length;
+  }, [cases]);
 
   // 1. Listen to onboarded customers
   useEffect(() => {
     if (!user) return;
     const custCol = collection(db, 'customers');
-    const unsubscribe = onSnapshot(custCol, (snapshot) => {
-      const map: Record<string, string> = {};
-      snapshot.forEach((docSnap) => {
-        const d = docSnap.data();
-        if (d.groupKey && d.customerId) {
-          map[d.groupKey] = d.customerId;
-        }
-      });
-      setOnboardedCustomerMap(map);
-    });
+    const unsubscribe = onSnapshot(
+      custCol,
+      (snapshot) => {
+        const map: Record<string, string> = {};
+        snapshot.forEach((docSnap) => {
+          const d = docSnap.data();
+          if (d.groupKey && d.customerId) {
+            map[d.groupKey] = d.customerId;
+          }
+        });
+        setOnboardedCustomerMap(map);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'customers');
+      }
+    );
     return () => unsubscribe();
   }, [user]);
 
@@ -77,65 +137,71 @@ function MainApp() {
   useEffect(() => {
     if (!user) return;
     const evCol = collection(db, 'events');
-    const unsubscribe = onSnapshot(evCol, async (snapshot) => {
-      const list: AlertEventRecord[] = [];
-      let newArrival: AlertEventRecord | null = null;
+    const unsubscribe = onSnapshot(
+      evCol,
+      async (snapshot) => {
+        const list: AlertEventRecord[] = [];
+        let newArrival: AlertEventRecord | null = null;
 
-      snapshot.forEach((snap) => {
-        const d = snap.data();
-        const ev: AlertEventRecord = {
-          id: snap.id,
-          customerId: d.customerId,
-          groupId: d.groupId,
-          templateId: d.templateId,
-          changeType: d.changeType,
-          payload: d.data || d.payload || {},
-          description: d.description,
-          source: d.source,
-          confidence: d.confidence,
-          detectedAt: d.detectedAt,
-          status: d.status || 'pending',
-          decidedBy: d.decidedBy,
-          decidedAt: d.decidedAt,
-          dismissReason: d.dismissReason,
-          _simulation: d._simulation
-        };
-        list.push(ev);
+        snapshot.forEach((snap) => {
+          const d = snap.data();
+          const ev: AlertEventRecord = {
+            id: snap.id,
+            customerId: d.customerId,
+            groupId: d.groupId,
+            templateId: d.templateId,
+            changeType: d.changeType,
+            payload: d.data || d.payload || {},
+            description: d.description,
+            source: d.source,
+            confidence: d.confidence,
+            detectedAt: d.detectedAt,
+            status: d.status || 'pending',
+            decidedBy: d.decidedBy,
+            decidedAt: d.decidedAt,
+            dismissReason: d.dismissReason,
+            _simulation: d._simulation
+          };
+          list.push(ev);
 
-        // Check for new pending event arriving live
-        if (ev.status === 'pending' && initialListenRef.current) {
-          const isExisting = events.some((e) => e.id === ev.id);
-          if (!isExisting) {
-            newArrival = ev;
+          // Check for new pending event arriving live (reacting strictly to status == 'pending')
+          if (ev.status === 'pending') {
+            if (initialListenRef.current && !seenPendingIdsRef.current.has(ev.id)) {
+              newArrival = ev;
+            }
+            seenPendingIdsRef.current.add(ev.id);
           }
-        }
-      });
-
-      // Audit once per session: "Monitoring armed for N customers"
-      if (!initialListenRef.current) {
-        initialListenRef.current = true;
-        const onboardedCount = Object.keys(onboardedCustomerMap).length;
-        writeAuditRecord({
-          actorUid: user.uid,
-          actorType: 'SYSTEM',
-          actorName: 'Sentinel Live Monitoring',
-          action: 'MONITORING_ARMED',
-          summary: `Perpetual KYC monitoring armed across ${onboardedCount || 5} corporate registries.`
-        }).catch(() => {});
-      }
-
-      setEvents(list);
-
-      // Trigger live toast if new event arrived
-      if (newArrival) {
-        const group = groups.find((g) => g.id === (newArrival as AlertEventRecord).groupId);
-        setActiveToast({
-          id: (newArrival as AlertEventRecord).id,
-          message: `Live Monitoring detected a change for ${group?.name || (newArrival as AlertEventRecord).groupId}`,
-          event: newArrival
         });
+
+        // Audit once per session: "Monitoring armed for N customers"
+        if (!initialListenRef.current) {
+          initialListenRef.current = true;
+          const onboardedCount = Object.keys(onboardedCustomerMap).length;
+          writeAuditRecord({
+            actorUid: user.uid,
+            actorType: 'SYSTEM',
+            actorName: 'Sentinel Live Monitoring',
+            action: 'MONITORING_ARMED',
+            summary: `Perpetual KYC monitoring armed across ${onboardedCount || 5} corporate registries.`
+          }).catch(() => {});
+        }
+
+        setEvents(list);
+
+        // Trigger live toast if new event arrived
+        if (newArrival) {
+          const group = groups.find((g) => g.id === (newArrival as AlertEventRecord).groupId);
+          setActiveToast({
+            id: (newArrival as AlertEventRecord).id,
+            message: `Live Monitoring detected a change for ${group?.name || (newArrival as AlertEventRecord).groupId}`,
+            event: newArrival
+          });
+        }
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'events');
       }
-    });
+    );
 
     return () => unsubscribe();
   }, [user, onboardedCustomerMap, groups]);
@@ -175,6 +241,8 @@ function MainApp() {
     return events.find((e) => e.groupId === selectedGroupId && e.status === 'pending') || null;
   }, [selectedGroupId, events]);
 
+  const [justCompletedScreeningGroupId, setJustCompletedScreeningGroupId] = useState<string | null>(null);
+
   // Flow Step:
   // 1: KYC Initiation
   // 2: Autonomous Mapping
@@ -185,11 +253,26 @@ function MainApp() {
   // 7: Unified Results
   const activeStep = useMemo(() => {
     if (activeRailItem === 'kyc-initiation') return 1;
-    if (reviewingEvent) return 5;
-    if (pendingEventForSelectedGroup) return 4;
-    if (selectedGroupId) return 3;
-    return 2;
-  }, [activeRailItem, reviewingEvent, pendingEventForSelectedGroup, selectedGroupId]);
+    if (activeRailItem === 'alerts') return 4;
+    if (activeRailItem === 'cases') return 7;
+
+    if (!selectedGroupId) return 2;
+
+    // Inside Entity Workspace:
+    if (reviewingEvent && reviewingEvent.groupId === selectedGroupId) {
+      return 5; // Materiality Assessment
+    }
+
+    if (activeScreeningRun && activeScreeningRun.triggerEvent.groupId === selectedGroupId) {
+      return 6; // KYC Agents Orchestration
+    }
+
+    if (justCompletedScreeningGroupId === selectedGroupId) {
+      return 7; // Step 7: Unified Results (shown only at the moment a review completes while staying on screen)
+    }
+
+    return 4; // Step 4: Live Monitoring
+  }, [activeRailItem, selectedGroupId, reviewingEvent, activeScreeningRun, justCompletedScreeningGroupId]);
 
   // Start Materiality Review on an event
   const startReviewEvent = async (event: AlertEventRecord) => {
@@ -224,19 +307,24 @@ function MainApp() {
 
     try {
       const eventRef = doc(db, 'events', reviewingEvent.id);
-      await updateDoc(eventRef, {
+      const deciderName = (profile?.displayName || user.displayName || user.email?.split('@')[0] || 'Analyst').slice(0, 120);
+      const updatePayload: Record<string, any> = {
         status: decision,
         decidedBy: user.uid,
-        decidedAt: new Date().toISOString(),
-        ...(dismissReason ? { dismissReason } : {})
-      });
+        decidedByName: deciderName,
+        decidedAt: serverTimestamp()
+      };
+      if (decision === 'dismissed') {
+        updatePayload.dismissReason = (dismissReason && dismissReason.trim()) ? dismissReason.trim() : 'Dismissed by compliance analyst';
+      }
+      await updateDoc(eventRef, updatePayload);
 
       // Audit decision
       const group = bodsRepository.getGroupById(reviewingEvent.groupId);
       await writeAuditRecord({
         actorUid: user.uid,
         actorType: profile?.governanceMode === 'automated' ? 'SYSTEM' : 'HUMAN',
-        actorName: profile?.displayName || 'Analyst',
+        actorName: deciderName,
         action: `EVENT_${decision.toUpperCase()}`,
         summary: `Registry change ${reviewingEvent.id} for ${group?.name} marked as ${decision.toUpperCase()}.`,
         groupId: reviewingEvent.groupId,
@@ -252,15 +340,30 @@ function MainApp() {
       });
 
       if (decision === 'accepted') {
-        setGeneralToast('Change permanently committed. KYC agents run in Phase 4.');
-        setTimeout(() => setGeneralToast(null), 4000);
+        setCaseToast(null);
+        setCaseErrorToast(null);
+        setActiveScreeningRun({
+          triggerEvent: reviewingEvent,
+          evaluation: currentEvaluation,
+          timestamp: Date.now()
+        });
+      } else if (decision === 'monitoring') {
+        setCaseToast(null);
+        setNeutralToast({ message: 'Change logged. Monitoring continues.' });
+      } else if (decision === 'dismissed') {
+        setCaseToast(null);
+        setNeutralToast({ message: 'Change dismissed and recorded.' });
       }
 
       setReviewingEvent(null);
       setCurrentEvaluation(null);
     } catch (err: any) {
       console.error('Failed to commit decision:', err);
-      alert(`Error committing decision: ${err.message}`);
+      const isPermission = err?.code === 'permission-denied' || err?.message?.includes('Missing or insufficient permissions');
+      const friendlyMsg = isPermission
+        ? 'Permission denied: You do not have authorization to record a decision on this registry event. Check that your account is authenticated.'
+        : `Error committing decision: ${err?.message || 'An error occurred'}`;
+      alert(friendlyMsg);
     }
   };
 
@@ -269,7 +372,7 @@ function MainApp() {
     return (
       <div
         className="h-screen w-screen flex flex-col items-center justify-center p-4 space-y-4"
-        style={{ backgroundColor: 'var(--bg-0)' }}
+        style={{ backgroundColor: 'var(--bg)' }}
       >
         <img
           src={SENTINEL_MARK_64}
@@ -278,8 +381,8 @@ function MainApp() {
           height={48}
           className="animate-pulse"
         />
-        <div className="flex items-center gap-2 text-xs font-mono" style={{ color: 'var(--ink-2)' }}>
-          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+        <div className="flex items-center gap-2 text-xs font-mono-code" style={{ color: 'var(--ink2)' }}>
+          <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--primary)' }} />
           <span>Verifying Firebase session credentials...</span>
         </div>
       </div>
@@ -296,7 +399,11 @@ function MainApp() {
       activeStep={activeStep}
       activeRailItem={activeRailItem}
       onSelectRailItem={(railId) => {
+        setViewingDossierPerson(null);
         setActiveRailItem(railId as any);
+        if (railId === 'cases') {
+          setTargetCaseId(null);
+        }
         if (railId === 'beneficial-ownership') {
           // If returning to ownership structures rail, reset workspace selection
           setSelectedGroupId(null);
@@ -304,18 +411,33 @@ function MainApp() {
         }
       }}
       pendingAlertsCount={pendingEventsCount}
+      pendingCasesCount={openCasesCount}
     >
       {/* Live Arrival Toast */}
       {activeToast && (
-        <div className="fixed top-20 right-6 z-50 animate-drop max-w-md w-full shadow-2xl rounded-2xl p-4 border bg-slate-900/95 border-amber-500/40 backdrop-blur-md">
+        <div
+          role="alert"
+          className="fixed top-20 right-6 z-50 anim-drop max-w-[440px] w-full rounded-2xl p-4 border backdrop-blur-sm shadow-xl"
+          style={{
+            backgroundColor: 'var(--card)',
+            borderColor: 'var(--amber)',
+            boxShadow: 'var(--sh3)',
+            color: 'var(--ink)'
+          }}
+        >
           <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <span className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
-                <Radio className="w-4 h-4 text-amber-400 animate-pulse" />
+            <div className="flex items-start gap-2.5 min-w-0">
+              <span
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-0.5"
+                style={{ backgroundColor: 'var(--amber-s)', color: 'var(--amber)' }}
+              >
+                <Radio className="w-4 h-4 animate-pulse" />
               </span>
-              <div>
-                <p className="text-xs font-bold text-slate-100">{activeToast.message}</p>
-                <p className="text-[11px] font-mono text-amber-400 truncate mt-0.5">
+              <div className="min-w-0">
+                <p className="text-xs font-bold font-display leading-snug" style={{ color: 'var(--ink)' }}>
+                  {activeToast.message}
+                </p>
+                <p className="text-[11px] font-mono-code leading-relaxed mt-1 whitespace-normal break-words" style={{ color: 'var(--amber)' }}>
                   {activeToast.event.description}
                 </p>
               </div>
@@ -323,22 +445,30 @@ function MainApp() {
 
             <button
               onClick={() => setActiveToast(null)}
-              className="text-slate-400 hover:text-white p-1"
+              type="button"
+              aria-label="Close notification"
+              className="text-[var(--ink3)] hover:text-[var(--ink)] p-1 rounded transition-colors focus-visible:ring-2 shrink-0"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="mt-3 pt-2 border-t border-slate-800 flex justify-end gap-2">
+          <div
+            className="mt-3 pt-2 flex justify-end gap-2 border-t"
+            style={{ borderColor: 'var(--line)' }}
+          >
             <button
               onClick={() => setActiveToast(null)}
-              className="px-2.5 py-1 text-xs text-slate-400 hover:text-white font-medium"
+              type="button"
+              className="px-2.5 py-1 text-xs font-medium text-[var(--ink2)] hover:text-[var(--ink)] transition-colors focus-visible:ring-2"
             >
               Dismiss
             </button>
             <button
               onClick={() => startReviewEvent(activeToast.event)}
-              className="px-3.5 py-1 text-xs font-bold rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center gap-1 shadow-md"
+              type="button"
+              className="px-3.5 py-1 text-xs font-bold rounded-lg text-white flex items-center gap-1 shadow-sm transition-transform active:scale-95 focus-visible:ring-2 cursor-pointer"
+              style={{ backgroundColor: 'var(--amber)' }}
             >
               <span>Review</span>
               <ArrowRight className="w-3.5 h-3.5" />
@@ -347,50 +477,252 @@ function MainApp() {
         </div>
       )}
 
+      {/* PKYC Case Toast */}
+      {caseToast && (
+        <div
+          role="status"
+          className="fixed top-20 right-6 z-50 anim-drop max-w-[440px] w-full rounded-2xl p-4 border backdrop-blur-sm shadow-xl flex items-start justify-between gap-3"
+          style={{
+            backgroundColor: 'var(--card)',
+            borderColor: 'var(--amber)',
+            boxShadow: 'var(--sh3)',
+          }}
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5"
+              style={{
+                backgroundColor: 'var(--amber-s)',
+                borderColor: 'var(--amber)',
+                color: 'var(--amber)',
+              }}
+            >
+              <Briefcase className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-[var(--ink)]">Perpetual KYC Case Initiated</span>
+                <span
+                  className="px-1.5 py-0.5 rounded font-mono-code font-bold text-[10.5px]"
+                  style={{
+                    backgroundColor: 'var(--bg2)',
+                    color: 'var(--amber)',
+                    border: '1px solid var(--line)',
+                  }}
+                >
+                  {caseToast.caseId}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--ink2)] mt-1.5 leading-relaxed whitespace-normal break-words">
+                Screening completed for {caseToast.groupName}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setTargetCaseId(caseToast.caseId);
+                  setActiveRailItem('cases');
+                  setCaseToast(null);
+                }}
+                className="mt-2 text-xs font-bold text-[var(--primary)] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>Open case</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCaseToast(null)}
+            aria-label="Dismiss case notification"
+            className="text-[var(--ink3)] hover:text-[var(--ink)] p-1 rounded transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* PKYC Case Write Error Toast with Retry */}
+      {caseErrorToast && (
+        <div
+          role="alert"
+          className="fixed top-20 right-6 z-50 anim-drop max-w-[440px] w-full rounded-2xl p-4 border backdrop-blur-sm shadow-xl flex items-start justify-between gap-3"
+          style={{
+            backgroundColor: 'var(--card)',
+            borderColor: 'var(--rose)',
+            boxShadow: 'var(--sh3)',
+          }}
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 border mt-0.5"
+              style={{
+                backgroundColor: 'var(--coral-s)',
+                borderColor: 'var(--rose)',
+                color: 'var(--rose)',
+              }}
+            >
+              <AlertTriangle className="w-4 h-4 animate-bounce" />
+            </div>
+            <div className="min-w-0 text-xs">
+              <div className="font-bold text-[var(--ink)]">Case Persistence Failed</div>
+              <p className="text-[var(--ink2)] mt-1.5 whitespace-normal break-words leading-relaxed">
+                {caseErrorToast.message}
+              </p>
+              <button
+                type="button"
+                onClick={caseErrorToast.onRetry}
+                className="mt-2.5 text-xs font-bold text-[var(--rose)] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>Retry writing case</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setCaseErrorToast(null)}
+            aria-label="Dismiss error notification"
+            className="text-[var(--ink3)] hover:text-[var(--ink)] p-1 rounded transition-colors shrink-0"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Neutral Confirmation Toast (for Monitor only & Dismiss per prompt requirement) */}
+      {neutralToast && (
+        <div
+          role="status"
+          className="fixed top-20 right-6 z-50 anim-drop max-w-[400px] w-full rounded-2xl p-4 border backdrop-blur-sm shadow-xl flex items-center justify-between gap-3"
+          style={{
+            backgroundColor: 'var(--card)',
+            borderColor: 'var(--line)',
+            boxShadow: 'var(--sh3)',
+          }}
+        >
+          <div className="flex items-center gap-2.5 text-xs font-semibold text-[var(--ink)]">
+            <span className="w-2 h-2 rounded-full bg-[var(--primary)]" />
+            <span>{neutralToast.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setNeutralToast(null)}
+            aria-label="Dismiss notification"
+            className="text-[var(--ink3)] hover:text-[var(--ink)] p-1 rounded transition-colors shrink-0 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       {/* General Phase Notification Toast */}
       {generalToast && (
-        <div className="fixed top-20 right-6 z-50 animate-drop max-w-md shadow-2xl rounded-2xl p-4 border bg-emerald-950/90 border-emerald-500/40 backdrop-blur-md flex items-center gap-3">
-          <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
-          <span className="text-xs font-semibold text-emerald-200">{generalToast}</span>
+        <div
+          role="status"
+          className="fixed top-20 right-6 z-50 anim-drop max-w-[440px] w-full rounded-2xl p-4 border backdrop-blur-sm flex items-center gap-3"
+          style={{
+            backgroundColor: 'var(--card)',
+            borderColor: 'var(--emerald)',
+            boxShadow: 'var(--sh3)',
+            color: 'var(--ink)'
+          }}
+        >
+          <CheckCircle2 className="w-5 h-5 shrink-0" style={{ color: 'var(--emerald)' }} />
+          <span className="text-xs font-semibold" style={{ color: 'var(--ink)' }}>
+            {generalToast}
+          </span>
         </div>
       )}
 
       {/* View Routing */}
-      {activeRailItem === 'kyc-initiation' ? (
-        <KycInitiationView
-          onOpenCustomerWorkspace={(groupId, custId) => {
-            setSelectedGroupId(groupId);
-            setSelectedCustomerId(custId);
-            setActiveRailItem('beneficial-ownership');
-          }}
-        />
-      ) : activeRailItem === 'alerts' ? (
-        <AlertsView
-          onReviewAlert={(_gid, _cid, event) => startReviewEvent(event)}
-          governanceMode={profile?.governanceMode || 'human-in-the-loop'}
-        />
-      ) : currentGroup ? (
-        <EntityWorkspaceView
-          group={currentGroup}
-          customerId={selectedCustomerId || undefined}
-          onBack={() => {
-            setSelectedGroupId(null);
-            setSelectedCustomerId(null);
-          }}
-          pendingEvent={pendingEventForSelectedGroup}
-          onReviewEvent={(ev) => startReviewEvent(ev)}
-        />
-      ) : (
-        <OwnershipStructuresView
-          groups={groups}
-          onSelectGroup={(groupId) => {
-            setSelectedGroupId(groupId);
-            const foundCust = onboardedCustomerMap[groupId];
-            setSelectedCustomerId(foundCust || null);
-          }}
-          onboardedCustomerMap={onboardedCustomerMap}
+      {viewingDossierPerson && (
+        <AdverseMediaDossierView
+          person={viewingDossierPerson}
+          onBack={() => setViewingDossierPerson(null)}
         />
       )}
+
+      <div style={{ display: viewingDossierPerson ? 'none' : 'contents' }}>
+        {activeRailItem === 'kyc-initiation' ? (
+          <KycInitiationView
+            onOpenCustomerWorkspace={(groupId, custId) => {
+              setSelectedGroupId(groupId);
+              setSelectedCustomerId(custId);
+              setActiveRailItem('beneficial-ownership');
+            }}
+          />
+        ) : activeRailItem === 'alerts' ? (
+          <AlertsView
+            onReviewAlert={(_gid, _cid, event) => startReviewEvent(event)}
+            governanceMode={profile?.governanceMode || 'human-in-the-loop'}
+          />
+        ) : activeRailItem === 'cases' ? (
+          <CasesView
+            initialCaseId={targetCaseId}
+            onOpenCustomerWorkspace={(groupId, custId) => {
+              setSelectedGroupId(groupId);
+              setSelectedCustomerId(custId);
+              setActiveRailItem('beneficial-ownership');
+            }}
+            onOpenDossier={(person) => setViewingDossierPerson(person)}
+          />
+        ) : currentGroup ? (
+          <EntityWorkspaceView
+            group={currentGroup}
+            customerId={selectedCustomerId || undefined}
+            onBack={() => {
+              setSelectedGroupId(null);
+              setSelectedCustomerId(null);
+            }}
+            pendingEvent={pendingEventForSelectedGroup}
+            events={events}
+            activeScreeningRun={activeScreeningRun}
+            onScreeningComplete={(createdCase) => {
+              setCaseErrorToast(null);
+              setJustCompletedScreeningGroupId(currentGroup.id);
+              setCaseToast({
+                caseId: createdCase.caseId,
+                groupName: currentGroup.name,
+                triggerType: 'PKYC'
+              });
+            }}
+            onScreeningError={(err) => {
+              console.error('[PKYC Screening Workflow Error]', err);
+              const isPermission = err?.code === 'permission-denied' || err?.message?.includes('Missing or insufficient permissions');
+              setCaseErrorToast({
+                message: isPermission
+                  ? 'Permission denied: Insufficient permissions to create PKYC compliance case.'
+                  : (err?.message || 'Failed to persist case document in Firestore.'),
+                onRetry: () => {
+                  if (activeScreeningRun) {
+                    setActiveScreeningRun({ ...activeScreeningRun, timestamp: Date.now() });
+                  }
+                }
+              });
+            }}
+            onScreeningFinished={() => setActiveScreeningRun(null)}
+            onReviewEvent={(ev) => startReviewEvent(ev)}
+            onOpenCase={(caseId) => {
+              if (caseId) setTargetCaseId(caseId);
+              setActiveRailItem('cases');
+            }}
+            onOpenDossier={(person) => setViewingDossierPerson(person)}
+          />
+        ) : (
+          <OwnershipStructuresView
+            groups={groups}
+            onSelectGroup={(groupId) => {
+              setSelectedGroupId(groupId);
+              const foundCust = onboardedCustomerMap[groupId];
+              setSelectedCustomerId(foundCust || null);
+            }}
+            onboardedCustomerMap={onboardedCustomerMap}
+            onInitiateKyc={() => setActiveRailItem('kyc-initiation')}
+          />
+        )}
+      </div>
 
       {/* Materiality Assessment Modal */}
       {reviewingEvent && currentEvaluation && (

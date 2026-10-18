@@ -5,7 +5,7 @@
  * In PRODUCTION: publishes JSON message to Google Cloud Pub/Sub topic.
  */
 
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { getFirestoreDb } from '../lib/firebase';
 
 export interface RegistryChangeEvent {
@@ -23,6 +23,7 @@ export interface RegistryChangeEvent {
   decidedBy?: string;
   decidedAt?: string;
   dismissReason?: string;
+  _simulation?: boolean;
 }
 
 export interface IEventFeedAdapter {
@@ -36,9 +37,20 @@ export class PreviewEventFeedAdapter implements IEventFeedAdapter {
     if (!db) {
       throw new Error('[PreviewEventFeedAdapter] Firestore client is not initialized.');
     }
-    const eventRef = doc(db, 'events', event.id);
+    const sanitizedId = event.id.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 128);
+    const eventRef = doc(db, 'events', sanitizedId);
+    
+    // Check if event already exists to prevent duplicate writes
+    const snap = await getDoc(eventRef);
+    if (snap.exists()) {
+      return;
+    }
+
+    const { decidedBy, decidedAt, dismissReason, ...cleanEvent } = event;
     await setDoc(eventRef, {
-      ...event,
+      ...cleanEvent,
+      id: sanitizedId,
+      status: 'pending',
       _simulation: true
     });
   }
@@ -47,6 +59,8 @@ export class PreviewEventFeedAdapter implements IEventFeedAdapter {
     return 'PREVIEW';
   }
 }
+
+import { getAuth } from 'firebase/auth';
 
 export class ProductionEventFeedAdapter implements IEventFeedAdapter {
   private topicName: string;
@@ -62,9 +76,20 @@ export class ProductionEventFeedAdapter implements IEventFeedAdapter {
   async publishEvent(event: RegistryChangeEvent): Promise<void> {
     // In production, publishes message to Pub/Sub topic
     // A push subscription forwards to POST /api/events/registry with OIDC authentication
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    try {
+      const auth = getAuth();
+      if (auth.currentUser) {
+        const token = await auth.currentUser.getIdToken();
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    } catch {
+      // Running outside client auth context
+    }
+
     const response = await fetch('/api/events/publish', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ topic: this.topicName, event })
     });
     if (!response.ok) {
@@ -78,7 +103,7 @@ export class ProductionEventFeedAdapter implements IEventFeedAdapter {
 }
 
 export function getEventFeedAdapter(): IEventFeedAdapter {
-  const mode = process.env.APP_MODE === 'PRODUCTION' ? 'PRODUCTION' : 'PREVIEW';
+  const mode = process.env.APP_MODE?.toLowerCase() === 'production' ? 'PRODUCTION' : 'PREVIEW';
   if (mode === 'PRODUCTION') {
     return new ProductionEventFeedAdapter();
   }

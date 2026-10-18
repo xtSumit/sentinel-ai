@@ -36,9 +36,10 @@ import {
   Database,
   History,
   GitBranch,
-  ShieldAlert
+  ShieldAlert,
+  Play
 } from 'lucide-react';
-import { normaliseEntityName } from '../adapters/sanctionsAdapter';
+import { normaliseEntityName } from '../engine/sanctionsNormalizer';
 
 interface KycInitiationViewProps {
   onOpenCustomerWorkspace: (groupId: string, customerId: string) => void;
@@ -60,8 +61,8 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
 
   // Form State
   const [legalName, setLegalName] = useState('');
+  const [registrationNumber, setRegistrationNumber] = useState('');
   const [jurisdiction, setJurisdiction] = useState('UK');
-  const [customerIdInput, setCustomerIdInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -71,6 +72,35 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
   const [isNewCustomer, setIsNewCustomer] = useState(false);
   const [mappingActive, setMappingActive] = useState(false);
   const [mappingComplete, setMappingComplete] = useState(false);
+
+  // Helper to match candidate demo group from name or registration number
+  const findMatchedGroup = (nameVal: string, regVal: string) => {
+    const cleanReg = regVal.trim().toUpperCase();
+    const cleanName = normaliseEntityName(nameVal.trim());
+
+    return groups.find((g) => {
+      const rootEntity = g.entities.find((e) => e.id === g.rootEntityId);
+      // Match by exact registration number
+      if (cleanReg) {
+        if (rootEntity?.registrationId?.toUpperCase() === cleanReg) return true;
+        if (g.entities.some((e) => e.registrationId?.toUpperCase() === cleanReg)) return true;
+      }
+      // Match by legal name
+      if (cleanName) {
+        const cleanGroupName = normaliseEntityName(g.name);
+        if (cleanGroupName === cleanName || cleanGroupName.includes(cleanName) || cleanName.includes(cleanGroupName)) {
+          return true;
+        }
+        if (rootEntity) {
+          const cleanRootName = normaliseEntityName(rootEntity.name);
+          if (cleanRootName === cleanName || cleanRootName.includes(cleanName) || cleanName.includes(cleanRootName)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+  };
 
   // Agent Steps State
   const [steps, setSteps] = useState<MappingStep[]>([
@@ -82,9 +112,10 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
   ]);
 
   const handlePrefill = (group: any) => {
+    const rootEntity = group.entities.find((e: any) => e.id === group.rootEntityId);
     setLegalName(group.name);
+    setRegistrationNumber(rootEntity?.registrationId || '');
     setJurisdiction(group.rootJurisdiction);
-    setCustomerIdInput('');
     setErrorMessage(null);
     setMatchedGroup(null);
     setMappingActive(false);
@@ -93,8 +124,8 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
 
   const handleInitiate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!legalName.trim()) {
-      setErrorMessage('Legal entity name is required.');
+    if (!legalName.trim() && !registrationNumber.trim()) {
+      setErrorMessage('This demo recognises five sample corporate structures. Try one of the examples above.');
       return;
     }
 
@@ -105,16 +136,12 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
     setMappingComplete(false);
 
     try {
-      // 1. Normalise name and search 5 BODS groups
-      const cleanInput = normaliseEntityName(legalName);
-      const match = groups.find((g) => {
-        const cleanGroupName = normaliseEntityName(g.name);
-        return cleanGroupName === cleanInput || cleanGroupName.includes(cleanInput) || cleanInput.includes(cleanGroupName);
-      });
+      // 1. Search 5 BODS groups by name OR registration number
+      const match = findMatchedGroup(legalName, registrationNumber);
 
       if (!match) {
         setErrorMessage(
-          `No matching corporate group found for "${legalName}". The Sentinel AI demo contains five mapped structures: Aurelia Maritime, Cairnstone Precision, Deccan Grid, Ouroboros Meridian, or Obsidian Wharf. Please choose a sample from above.`
+          'This demo recognises five sample corporate structures. Try one of the examples above.'
         );
         setIsSubmitting(false);
         return;
@@ -122,8 +149,8 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
 
       setMatchedGroup(match);
 
-      // 2. Check if this group is already onboarded in customers collection
-      let custId = customerIdInput.trim();
+      // 2. Check if this group is already onboarded in customers collection to prevent duplicates
+      let custId = '';
       let createdNew = false;
 
       // Query customers collection for existing groupKey
@@ -137,14 +164,10 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
         custId = existingData.customerId;
         createdNew = false;
       } else {
-        // New onboarding
-        if (!custId) {
-          const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-          custId = `CUS-2026-${randomSuffix}`;
-          createdNew = true;
-        } else {
-          createdNew = false;
-        }
+        // New onboarding auto-generated customer ID
+        const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+        custId = `CUS-2026-${randomSuffix}`;
+        createdNew = true;
 
         // Persist new customer in Firestore
         if (user) {
@@ -164,10 +187,8 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
             actorUid: user.uid,
             actorType: 'HUMAN',
             actorName: profile?.displayName || 'Analyst',
-            action: createdNew ? 'CUSTOMER_CREATED' : 'CUSTOMER_MATCHED',
-            summary: createdNew
-              ? `Customer account ${custId} generated and onboarded for ${match.name}.`
-              : `Customer account ${custId} matched for ${match.name}.`,
+            action: 'CUSTOMER_CREATED',
+            summary: `Customer account ${custId} generated and onboarded for ${match.name}.`,
             customerId: custId,
             groupId: match.id,
             details: {
@@ -304,45 +325,40 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
           </span>
         </div>
 
-        <h1
-          className="text-2xl md:text-3xl font-bold tracking-tight"
-          style={{
-            fontFamily: "'Sora', sans-serif",
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #93C5FD 50%, #3B82F6 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
-          }}
-        >
+        <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight font-display sig-gradient-headline">
           KYC Initiation &amp; Autonomous Mapping
         </h1>
-        <p className="text-sm" style={{ color: 'var(--ink-2)' }}>
+        <p className="text-sm" style={{ color: 'var(--ink2)' }}>
           Onboard new legal entities, match against baseline registries, and initiate the autonomous multi-layer graph resolution agent.
         </p>
       </div>
 
       {/* "Try a sample" chips */}
       <div className="space-y-2">
-        <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--ink-2)' }}>
+        <div className="flex items-center gap-2 text-xs font-medium" style={{ color: 'var(--ink2)' }}>
           <Sparkles className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
           <span>Try a sample corporate structure:</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {groups.map((g) => (
-            <button
-              key={g.id}
-              onClick={() => handlePrefill(g)}
-              type="button"
-              className="text-xs font-mono px-3 py-1.5 rounded-lg transition-all duration-150 flex items-center gap-1.5 cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-              style={{
-                backgroundColor: legalName === g.name ? 'rgba(59, 130, 246, 0.2)' : 'var(--bg-2)',
-                border: legalName === g.name ? '1px solid var(--primary)' : '1px solid var(--border)',
-                color: legalName === g.name ? 'var(--primary)' : 'var(--ink-1)'
-              }}
-            >
-              <span>{g.rootFlag}</span>
-              <span className="font-sans font-medium">{g.name}</span>
-            </button>
-          ))}
+          {groups.map((g) => {
+            const isSelected = legalName === g.name;
+            return (
+              <button
+                key={g.id}
+                onClick={() => handlePrefill(g)}
+                type="button"
+                className="text-xs font-mono-code px-3 py-1.5 rounded-lg transition-all duration-150 flex items-center gap-1.5 cursor-pointer focus-visible:ring-2"
+                style={{
+                  backgroundColor: isSelected ? 'var(--bg2)' : 'transparent',
+                  border: isSelected ? '1px solid var(--ink)' : '1px solid var(--line)',
+                  color: isSelected ? 'var(--ink)' : 'var(--ink2)',
+                }}
+              >
+                <span>{g.rootFlag}</span>
+                <span className="font-sans font-medium">{g.name}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -350,102 +366,123 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
       <div
         className="rounded-2xl p-6 transition-all duration-200 shadow-xl"
         style={{
-          backgroundColor: 'var(--bg-1)',
-          border: '1px solid var(--border)'
+          backgroundColor: 'var(--card)',
+          border: '1px solid var(--line)'
         }}
       >
         <form onSubmit={handleInitiate} className="space-y-5">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 min-[900px]:grid-cols-2 gap-4">
             {/* Legal Entity Name */}
-            <div className="space-y-1.5 md:col-span-2">
-              <label className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--ink-1)' }}>
+            <div className="space-y-1.5 min-[900px]:col-span-2 col-span-1">
+              <label className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--ink)' }}>
                 <Building2 className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
                 <span>Legal Entity Name <span style={{ color: 'var(--coral)' }}>*</span></span>
               </label>
               <input
                 type="text"
-                required
                 value={legalName}
-                onChange={(e) => setLegalName(e.target.value)}
+                onChange={(e) => {
+                  setLegalName(e.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
                 placeholder="e.g. Aurelia Maritime Logistics Ltd"
-                className="w-full px-3.5 py-2.5 text-sm rounded-[10px] transition-all outline-none"
+                className="w-full px-3.5 py-2.5 text-sm rounded-[10px] transition-all outline-none focus-visible:ring-2"
                 style={{
-                  backgroundColor: 'var(--bg-2)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--ink-0)'
+                  backgroundColor: 'var(--bg2)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--ink)'
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = 'var(--primary)';
-                  e.currentTarget.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.25)';
+                  e.currentTarget.style.boxShadow = '0 0 0 2px rgba(1, 110, 253, 0.25)';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border)';
+                  e.currentTarget.style.borderColor = 'var(--line)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              />
+            </div>
+
+            {/* Registration number (Optional) - placed after Legal Entity Name and before Jurisdiction */}
+            <div className="space-y-1.5 col-span-1">
+              <label className="text-xs font-semibold flex items-center justify-between" style={{ color: 'var(--ink)' }}>
+                <span className="flex items-center gap-1.5">
+                  <Hash className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
+                  <span>Registration number</span>
+                </span>
+                <span className="text-[10px] font-mono-code" style={{ color: 'var(--ink3)' }}>Optional</span>
+              </label>
+              <input
+                type="text"
+                value={registrationNumber}
+                onChange={(e) => {
+                  setRegistrationNumber(e.target.value);
+                  if (errorMessage) setErrorMessage(null);
+                }}
+                placeholder="e.g. UK-CH-10948211"
+                className="w-full px-3.5 py-2.5 text-sm font-mono-code rounded-[10px] transition-all outline-none focus-visible:ring-2"
+                style={{
+                  backgroundColor: 'var(--bg2)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--ink)'
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--primary)';
+                  e.currentTarget.style.boxShadow = '0 0 0 2px rgba(1, 110, 253, 0.25)';
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--line)';
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               />
             </div>
 
             {/* Jurisdiction */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--ink-1)' }}>
+            <div className="space-y-1.5 col-span-1">
+              <label className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--ink)' }}>
                 <Globe2 className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
                 <span>Incorporation Jurisdiction <span style={{ color: 'var(--coral)' }}>*</span></span>
               </label>
               <select
                 value={jurisdiction}
                 onChange={(e) => setJurisdiction(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-sm rounded-[10px] transition-all outline-none cursor-pointer"
+                className="w-full px-3.5 py-2.5 text-sm rounded-[10px] transition-all outline-none cursor-pointer focus-visible:ring-2"
                 style={{
-                  backgroundColor: 'var(--bg-2)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--ink-0)'
+                  backgroundColor: 'var(--bg2)',
+                  border: '1px solid var(--line)',
+                  color: 'var(--ink)'
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = 'var(--primary)';
-                  e.currentTarget.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.25)';
+                  e.currentTarget.style.boxShadow = '0 0 0 2px rgba(1, 110, 253, 0.25)';
                 }}
                 onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border)';
+                  e.currentTarget.style.borderColor = 'var(--line)';
                   e.currentTarget.style.boxShadow = 'none';
                 }}
               >
-                {jurisdictionRules.map((rule) => (
-                  <option key={rule.code} value={rule.code} style={{ backgroundColor: 'var(--bg-1)' }}>
-                    {rule.name} ({rule.code}) — {rule.uboThreshold}% statutory threshold
-                  </option>
-                ))}
+                {jurisdictionRules.map((rule) => {
+                  const countryName = rule.code === 'EU' ? 'Luxembourg' : rule.name;
+                  return (
+                    <option key={rule.code} value={rule.code} style={{ backgroundColor: 'var(--card)' }}>
+                      {countryName}
+                    </option>
+                  );
+                })}
               </select>
-            </div>
-
-            {/* Existing Customer ID (Optional) */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-semibold flex items-center justify-between" style={{ color: 'var(--ink-1)' }}>
-                <span className="flex items-center gap-1.5">
-                  <Hash className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
-                  <span>Existing Customer ID</span>
-                </span>
-                <span className="text-[10px] font-mono" style={{ color: 'var(--ink-3)' }}>Optional (CUS-2026-####)</span>
-              </label>
-              <input
-                type="text"
-                value={customerIdInput}
-                onChange={(e) => setCustomerIdInput(e.target.value)}
-                placeholder="Leave blank to auto-generate"
-                className="w-full px-3.5 py-2.5 text-sm font-mono rounded-[10px] transition-all outline-none"
-                style={{
-                  backgroundColor: 'var(--bg-2)',
-                  border: '1px solid var(--border)',
-                  color: 'var(--ink-0)'
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--primary)';
-                  e.currentTarget.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.25)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = 'var(--border)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-              />
+              {(() => {
+                const selectedRule = jurisdictionRules.find((r) => r.code === jurisdiction);
+                if (!selectedRule) return null;
+                const thresholdText =
+                  selectedRule.comparison === 'strictly_greater'
+                    ? `more than ${selectedRule.uboThreshold}%`
+                    : `${selectedRule.uboThreshold}% or more`;
+                return (
+                  <p className="text-[11px] font-mono-code mt-1" style={{ color: 'var(--ink2)' }}>
+                    UBO threshold: {thresholdText} · {selectedRule.regulationName}
+                  </p>
+                );
+              })()}
             </div>
           </div>
 
@@ -463,29 +500,53 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
             </div>
           )}
 
-          <div className="pt-2 flex justify-end">
-            <button
-              type="submit"
-              disabled={isSubmitting || !legalName.trim()}
-              className="py-2.5 px-6 rounded-xl font-medium text-sm flex items-center gap-2 cursor-pointer transition-all duration-200 shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
-              style={{
-                background: 'linear-gradient(135deg, var(--primary) 0%, #1D4ED8 100%)',
-                color: '#FFFFFF'
-              }}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Matching Registry...</span>
-                </>
-              ) : (
-                <>
-                  <Search className="w-4 h-4" />
-                  <span>Initiate Intake &amp; Map</span>
-                </>
-              )}
-            </button>
-          </div>
+          {/* Button with play-style right-pointing arrow, loading state, and disabled tooltip */}
+          {(() => {
+            if (mappingComplete) {
+              return null;
+            }
+
+            const hasInput = legalName.trim().length > 0 || registrationNumber.trim().length > 0;
+            const candidateMatch = hasInput ? findMatchedGroup(legalName, registrationNumber) : null;
+            const isButtonDisabled = isSubmitting || mappingActive || !hasInput || !candidateMatch;
+
+            let buttonTooltip = 'Initiate customer intake and run autonomous ownership mapping';
+            if (mappingActive || isSubmitting) {
+              buttonTooltip = 'Mapping is currently running...';
+            } else if (!hasInput) {
+              buttonTooltip = 'Please enter a Legal Entity Name or Registration Number to proceed';
+            } else if (!candidateMatch) {
+              buttonTooltip = 'This demo recognises five sample corporate structures. Try one of the examples above.';
+            }
+
+            return (
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit"
+                  disabled={isButtonDisabled}
+                  title={buttonTooltip}
+                  aria-label="Initiate Intake & Map"
+                  className="py-2.5 px-6 rounded-xl font-medium text-sm flex items-center gap-2 cursor-pointer transition-all duration-200 shadow-md active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2"
+                  style={{
+                    background: 'linear-gradient(135deg, var(--primary) 0%, #1D4ED8 100%)',
+                    color: '#FFFFFF'
+                  }}
+                >
+                  {isSubmitting || mappingActive ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Matching &amp; Mapping...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Initiate Intake &amp; Map</span>
+                      <Play className="w-3.5 h-3.5 fill-current ml-1" aria-hidden="true" />
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })()}
         </form>
       </div>
 
@@ -494,50 +555,50 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
         <div
           className="rounded-2xl p-6 transition-all duration-300 shadow-xl space-y-6 animate-scale-up"
           style={{
-            backgroundColor: 'var(--bg-1)',
-            border: '1px solid var(--border)',
+            backgroundColor: 'var(--card)',
+            border: '1px solid var(--line)',
             boxShadow: mappingComplete
-              ? '0 20px 40px -15px rgba(16, 185, 129, 0.2), 0 0 30px rgba(16, 185, 129, 0.1)'
-              : '0 20px 40px -15px rgba(59, 130, 246, 0.2), 0 0 30px rgba(59, 130, 246, 0.1)'
+              ? '0 20px 40px -15px rgba(5, 150, 105, 0.15), 0 0 30px rgba(5, 150, 105, 0.08)'
+              : '0 20px 40px -15px rgba(1, 110, 253, 0.15), 0 0 30px rgba(1, 110, 253, 0.08)'
           }}
         >
           {/* Card Header with Orb Animation */}
-          <div className="flex items-center justify-between border-b pb-4" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex items-center justify-between border-b pb-4" style={{ borderColor: 'var(--line)' }}>
             <div className="flex items-center gap-3">
               {/* Pulsing Orb */}
               <div className="relative flex items-center justify-center">
                 <div
                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-500 ${
-                    mappingComplete ? 'bg-emerald-500/20' : 'bg-blue-500/20'
+                    mappingComplete ? 'bg-emerald-500/15' : 'bg-blue-500/15'
                   }`}
                 >
                   <div
                     className={`w-4 h-4 rounded-full transition-all duration-500 ${
-                      mappingComplete ? 'bg-emerald-500 shadow-lg shadow-emerald-500/50' : 'bg-blue-500 animate-ping'
+                      mappingComplete ? 'bg-emerald-600 shadow-lg shadow-emerald-500/50' : 'bg-blue-600 animate-ping'
                     }`}
                   />
                   {!mappingComplete && (
-                    <div className="absolute w-4 h-4 rounded-full bg-blue-500 shadow-lg shadow-blue-500/50" />
+                    <div className="absolute w-4 h-4 rounded-full bg-blue-600 shadow-lg shadow-blue-500/50" />
                   )}
                 </div>
               </div>
 
               <div>
                 <div className="flex items-center gap-2">
-                  <h3 className="font-semibold text-sm" style={{ color: 'var(--ink-0)' }}>
+                  <h3 className="font-semibold text-sm" style={{ color: 'var(--ink)' }}>
                     Autonomous Mapping Agent
                   </h3>
                   <span
-                    className="text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold"
+                    className="text-[10px] font-mono-code px-2 py-0.5 rounded-full font-semibold"
                     style={{
-                      backgroundColor: mappingComplete ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                      backgroundColor: mappingComplete ? 'var(--emerald-s)' : 'var(--primary-s)',
                       color: mappingComplete ? 'var(--emerald)' : 'var(--primary)'
                     }}
                   >
                     {mappingComplete ? 'READY' : 'ANALYSING'}
                   </span>
                 </div>
-                <p className="text-xs font-mono" style={{ color: 'var(--ink-2)' }}>
+                <p className="text-xs font-mono-code" style={{ color: 'var(--ink2)' }}>
                   Target: {matchedGroup.name} · {resolvedCustomerId}
                 </p>
               </div>
@@ -547,7 +608,7 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
             {mappingComplete && (
               <button
                 onClick={() => onOpenCustomerWorkspace(matchedGroup.id, resolvedCustomerId)}
-                className="py-2 px-4 rounded-xl font-medium text-xs flex items-center gap-2 cursor-pointer transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] shadow-md"
+                className="py-2 px-4 rounded-xl font-medium text-xs flex items-center gap-2 cursor-pointer transition-all duration-150 hover:scale-[1.02] active:scale-[0.98] shadow-md focus-visible:ring-2"
                 style={{
                   background: 'linear-gradient(135deg, var(--emerald) 0%, #059669 100%)',
                   color: '#FFFFFF'
@@ -568,15 +629,15 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
                 style={{
                   backgroundColor:
                     st.status === 'running'
-                      ? 'rgba(59, 130, 246, 0.08)'
+                      ? 'var(--primary-s)'
                       : st.status === 'completed'
-                      ? 'rgba(16, 185, 129, 0.04)'
+                      ? 'var(--emerald-s)'
                       : 'transparent',
                   border:
                     st.status === 'running'
-                      ? '1px solid rgba(59, 130, 246, 0.3)'
+                      ? '1px solid rgba(1, 110, 253, 0.3)'
                       : st.status === 'completed'
-                      ? '1px solid rgba(16, 185, 129, 0.2)'
+                      ? '1px solid rgba(5, 150, 105, 0.2)'
                       : '1px solid transparent'
                 }}
               >
@@ -587,8 +648,8 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
                     <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--primary)' }} />
                   ) : (
                     <div
-                      className="w-4 h-4 rounded-full border flex items-center justify-center text-[10px] font-mono"
-                      style={{ borderColor: 'var(--border)', color: 'var(--ink-3)' }}
+                      className="w-4 h-4 rounded-full border flex items-center justify-center text-[10px] font-mono-code"
+                      style={{ borderColor: 'var(--line)', color: 'var(--ink3)' }}
                     >
                       {st.id}
                     </div>
@@ -602,29 +663,29 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
                       style={{
                         color:
                           st.status === 'completed'
-                            ? 'var(--ink-0)'
+                            ? 'var(--ink)'
                             : st.status === 'running'
                             ? 'var(--primary)'
-                            : 'var(--ink-2)'
+                            : 'var(--ink2)'
                       }}
                     >
                       {st.id}. {st.label}
                     </span>
                     <span
-                      className="text-[10px] font-mono"
+                      className="text-[10px] font-mono-code"
                       style={{
                         color:
                           st.status === 'completed'
                             ? 'var(--emerald)'
                             : st.status === 'running'
                             ? 'var(--primary)'
-                            : 'var(--ink-3)'
+                            : 'var(--ink3)'
                       }}
                     >
                       {st.status.toUpperCase()}
                     </span>
                   </div>
-                  <p className="text-xs font-mono mt-0.5" style={{ color: 'var(--ink-2)' }}>
+                  <p className="text-xs font-mono-code mt-0.5" style={{ color: 'var(--ink2)' }}>
                     {st.detail}
                   </p>
                 </div>

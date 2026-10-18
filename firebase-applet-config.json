@@ -1,12 +1,12 @@
 {
-  "projectId": "untangle-7",
-  "appId": "1:889164718683:web:333d8c8453fb9bd260957e",
-  "apiKey": "AIzaSyD8ZST6-ZMkrSz9DP2ROu5QsnWgKrVtCO8",
-  "authDomain": "untangle-7.firebaseapp.com",
+  "projectId": "sentinel-ai-511412",
+  "appId": "1:1044485290316:web:655c35dfeab364c28b77e9",
+  "apiKey": "AIzaSyApzPvy2YxpTu-Epob1l2r5hmD3RRGLRO0",
+  "authDomain": "sentinel-ai-511412.firebaseapp.com",
   "firestoreDatabaseId": "ai-studio-sentinelai-1a66e7cb-9c43-4e20-98b7-cd3f760ce19a",
-  "storageBucket": "untangle-7.firebasestorage.app",
-  "messagingSenderId": "889164718683",
+  "storageBucket": "sentinel-ai-511412.firebasestorage.app",
+  "messagingSenderId": "1044485290316",
   "measurementId": "",
-  "oAuthClientId": "889164718683-j8onfm44tqalk60ho24av79cuki20fvv.apps.googleusercontent.com",
+  "oAuthClientId": "1044485290316-g4sp9d5kt92ct3qn6lek019cqi0uc6sf.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

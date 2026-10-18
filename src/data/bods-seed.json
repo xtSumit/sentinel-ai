@@ -117,7 +117,7 @@
       "persons": [
         {
           "id": "per-g1-pep",
-          "name": "Dr. Kaelen Vance-Morozov",
+          "name": "Kaelen Vance Morozov",
           "initials": "KV",
           "nationality": "Foreign Jurisdiction",
           "flag": "🌐",
@@ -128,7 +128,7 @@
         },
         {
           "id": "per-g1-exec",
-          "name": "Eleanor Thorne-Finch",
+          "name": "Eleanor Thorne Finch",
           "initials": "ET",
           "nationality": "United Kingdom",
           "flag": "🇬🇧",
@@ -320,7 +320,7 @@
           "id": "evt-g1-tpl-2-pep-rise",
           "groupId": "grp-01-aurelia",
           "changeType": "SHARE_CHANGE",
-          "description": "Foreign PEP Dr. Kaelen Vance-Morozov increases stake in Solstice Crest International Corp. from 70% to 90%, raising effective root ownership from 28.7% to 36.9%.",
+          "description": "Foreign PEP Kaelen Vance Morozov increases stake in Solstice Crest International Corp. from 70% to 90%, raising effective root ownership from 28.7% to 36.9%.",
           "source": "BVI BOSSs Registry Update Notice",
           "confidence": 0.94,
           "expectedMaterialityHint": "MATERIAL",
@@ -404,7 +404,7 @@
       "persons": [
         {
           "id": "per-g2-def",
-          "name": "Morag Drummond-Fletcher",
+          "name": "Morag Drummond Fletcher",
           "initials": "MD",
           "nationality": "United Kingdom",
           "flag": "🇬🇧",
@@ -415,7 +415,7 @@
         },
         {
           "id": "per-g2-pos",
-          "name": "Henrik Lindqvist-Holm",
+          "name": "Henrik Lindqvist Holm",
           "initials": "HL",
           "nationality": "Sweden",
           "flag": "🇸🇪",
@@ -426,7 +426,7 @@
         },
         {
           "id": "per-g2-bel",
-          "name": "Clara Dumont-Moreau",
+          "name": "Clara Dumont Moreau",
           "initials": "CD",
           "nationality": "Luxembourg",
           "flag": "🇱🇺",
@@ -542,7 +542,7 @@
           "id": "evt-g2-tpl-1-band-tighten",
           "groupId": "grp-02-cairn",
           "changeType": "SHARE_CHANGE",
-          "description": "Audited register narrows Halcyon Reef Ventures Ltd's 25–50% band to 44–48%, shifting Henrik Lindqvist-Holm from POSSIBLE (15.0–37.5%) to DEFINITE UBO (26.4–36.0%).",
+          "description": "Audited register narrows Halcyon Reef Ventures Ltd's 25–50% band to 44–48%, shifting Henrik Lindqvist Holm from POSSIBLE (15.0–37.5%) to DEFINITE UBO (26.4–36.0%).",
           "source": "UK Companies House Audited Share Verification",
           "confidence": 0.95,
           "expectedMaterialityHint": "MATERIAL",
@@ -557,7 +557,7 @@
           "id": "evt-g2-tpl-2-minor-band-drift",
           "groupId": "grp-02-cairn",
           "changeType": "SHARE_CHANGE",
-          "description": "Clara Dumont-Moreau's minority band in Halcyon Reef Ventures Ltd adjusts slightly from 25–30% to 24–28%, remaining strictly BELOW threshold.",
+          "description": "Clara Dumont Moreau's minority band in Halcyon Reef Ventures Ltd adjusts slightly from 25–30% to 24–28%, remaining strictly BELOW threshold.",
           "source": "Cayman Annual LP Schedule Amendment",
           "confidence": 0.89,
           "expectedMaterialityHint": "MONITOR",
@@ -577,7 +577,7 @@
       "rootJurisdiction": "IN",
       "rootFlag": "🇮🇳",
       "description": "Indian renewable transmission operator with Singapore, UAE, and Mauritius holding layers, illustrating India's 10% SBO rule vs. 25% international rules.",
-      "scenarioSummary": "Jurisdiction-sensitive threshold: Ananya Deshmukh-Rao holds 12.6% effective ownership—classified as a DEFINITE UBO under India's 10% rule, but BELOW under a 25% rule.",
+      "scenarioSummary": "Jurisdiction-sensitive threshold: Ananya Deshmukh Rao holds 12.6% effective ownership—classified as a DEFINITE UBO under India's 10% rule, but BELOW under a 25% rule.",
       "iconName": "scale",
       "accentColor": "emerald",
       "riskTier": "STANDARD",
@@ -628,7 +628,7 @@
       "persons": [
         {
           "id": "per-g3-major",
-          "name": "Vikramaditya Kulkarni-Nair",
+          "name": "Vikramaditya Kulkarni Nair",
           "initials": "VK",
           "nationality": "India",
           "flag": "🇮🇳",
@@ -639,7 +639,7 @@
         },
         {
           "id": "per-g3-12pct",
-          "name": "Ananya Deshmukh-Rao",
+          "name": "Ananya Deshmukh Rao",
           "initials": "AD",
           "nationality": "India",
           "flag": "🇮🇳",
@@ -650,7 +650,7 @@
         },
         {
           "id": "per-g3-minor",
-          "name": "Rohan Chatterjee-Sen",
+          "name": "Rohan Chatterjee Sen",
           "initials": "RC",
           "nationality": "Singapore",
           "flag": "🇸🇬",
@@ -765,7 +765,7 @@
           "id": "evt-g3-tpl-1-cross-50pct",
           "groupId": "grp-03-deccan",
           "changeType": "SHARE_CHANGE",
-          "description": "Promoter Vikramaditya Kulkarni-Nair acquires an additional 6.0% direct stake in Deccan Grid Infrastructure Pvt Ltd (48.0% → 54.0%), crossing the 50% majority control threshold.",
+          "description": "Promoter Vikramaditya Kulkarni Nair acquires an additional 6.0% direct stake in Deccan Grid Infrastructure Pvt Ltd (48.0% → 54.0%), crossing the 50% majority control threshold.",
           "source": "MCA21 Form PAS-3 Return of Allotment",
           "confidence": 0.99,
           "expectedMaterialityHint": "MATERIAL",
@@ -780,7 +780,7 @@
           "id": "evt-g3-tpl-2-small-monitor",
           "groupId": "grp-03-deccan",
           "changeType": "SHARE_CHANGE",
-          "description": "Rohan Chatterjee-Sen's stake in Al-Qamar Infrastructure FZ-LLC increases marginally from 20% to 22% (effective root stake 8.6% → 8.9%), crossing no threshold.",
+          "description": "Rohan Chatterjee Sen's stake in Al-Qamar Infrastructure FZ-LLC increases marginally from 20% to 22% (effective root stake 8.6% → 8.9%), crossing no threshold.",
           "source": "DIFC Annual Confirmation Filing",
           "confidence": 0.93,
           "expectedMaterialityHint": "MONITOR",
@@ -851,7 +851,7 @@
       "persons": [
         {
           "id": "per-g4-ubo1",
-          "name": "Sébastien Voss-Delacroix",
+          "name": "Sébastien Voss Delacroix",
           "initials": "SV",
           "nationality": "France",
           "flag": "🇫🇷",
@@ -862,7 +862,7 @@
         },
         {
           "id": "per-g4-ubo2",
-          "name": "Mei-Ling Tan-Kwan",
+          "name": "Mei Ling Tan Kwan",
           "initials": "MT",
           "nationality": "Singapore",
           "flag": "🇸🇬",
@@ -1005,7 +1005,7 @@
           "id": "evt-g4-tpl-1-entity-dissolved",
           "groupId": "grp-04-ouroboros",
           "changeType": "ENTITY_DISSOLVED",
-          "description": "Intermediate holding vehicle Lyra Horizon Capital Ltd is struck off the Cayman register, breaking the reciprocal loop and eliminating Mei-Ling Tan-Kwan's UBO path.",
+          "description": "Intermediate holding vehicle Lyra Horizon Capital Ltd is struck off the Cayman register, breaking the reciprocal loop and eliminating Mei Ling Tan Kwan's UBO path.",
           "source": "Cayman Islands Extraordinary Gazette Strike-Off Notice",
           "confidence": 0.98,
           "expectedMaterialityHint": "MATERIAL",
@@ -1088,7 +1088,7 @@
       "persons": [
         {
           "id": "per-g5-known",
-          "name": "Julian Sterling-Houghton",
+          "name": "Julian Sterling Houghton",
           "initials": "JS",
           "nationality": "United Kingdom",
           "flag": "🇬🇧",
@@ -1099,7 +1099,7 @@
         },
         {
           "id": "per-g5-minor",
-          "name": "Beatrice Aldridge-Vane",
+          "name": "Beatrice Aldridge Vane",
           "initials": "BA",
           "nationality": "United Kingdom",
           "flag": "🇬🇧",
@@ -1280,7 +1280,7 @@
           "id": "evt-g5-tpl-2-minor-adjustment",
           "groupId": "grp-05-obsidian",
           "changeType": "SHARE_CHANGE",
-          "description": "Beatrice Aldridge-Vane's onshore minority stake in Obsidian Wharf Properties Ltd adjusts from 10.0% to 9.5%, remaining below the 25% UK threshold.",
+          "description": "Beatrice Aldridge Vane's onshore minority stake in Obsidian Wharf Properties Ltd adjusts from 10.0% to 9.5%, remaining below the 25% UK threshold.",
           "source": "UK Companies House Confirmation Statement",
           "confidence": 0.99,
           "expectedMaterialityHint": "MONITOR",

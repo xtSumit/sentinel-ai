@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { bodsRepository } from '../data/repository';
 import { evaluateMateriality } from './materialityEngine';
-import { PreviewSanctionsAdapter } from '../adapters/sanctionsAdapter';
+import { PreviewSanctionsAdapter } from './sanctionsNormalizer';
 
 async function runTestSuite() {
   console.log('================================================================');

@@ -1,12 +1,15 @@
 /**
  * Sentinel AI — Materiality Assessment Modal
- * Built per DESIGN.md & Custom Instructions:
- * - Animated sequence: ticking steps, orb
- * - Deterministic verdict stamp: CRITICAL (rose), MATERIAL (amber), MONITOR (grey)
- * - Delta row (old value struck through, new value in coral)
- * - Server-grounded Gemini 2-3 sentence explanation with fallback ladder & timeout
- * - Regulation citation box with verified flag
- * - Decisions: Accept & Run KYC agents, Monitor only, Dismiss with mandatory reason
+ * Built per DESIGN.md & custom instructions:
+ * - Light surface: white --card, --ink text, 1px --line borders, --sh3 shadow over blurred backdrop
+ * - Accessible: keyboard navigation (Escape to close, visible focus rings, aria-labels)
+ * - Ticking step sequence in light neutral style
+ * - Delta row with clearly labelled "Assessment confidence" and "Source confidence"
+ * - Trigger-matched regulatory box:
+ *   - Sanctions: designation (programmes, lists, OpenSanctions ID) and NO threshold badge
+ *   - Ownership: regulation with threshold ("Money Laundering Regulations 2017 · more than 25%")
+ * - Rationale explanation with AI vs Rule Template indicator
+ * - Safe rule template for sanctions: "Requires escalation: a newly introduced party matches an official sanctions designation."
  */
 
 import React, { useState, useEffect } from 'react';
@@ -20,10 +23,9 @@ import {
   Sparkles,
   Loader2,
   Scale,
-  Clock,
   ArrowRight,
   X,
-  FileText
+  ExternalLink
 } from 'lucide-react';
 
 interface MaterialityModalProps {
@@ -51,19 +53,27 @@ export const MaterialityModal: React.FC<MaterialityModalProps> = ({
   const [isAiGenerated, setIsAiGenerated] = useState<boolean>(false);
   const [dismissReason, setDismissReason] = useState('');
   const [showDismissInput, setShowDismissInput] = useState(false);
+  const [confirmingMonitor, setConfirmingMonitor] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  // Keyboard navigation: Escape key closes modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // Step ticking sequence (1: Re-resolving ownership, 2: Applying materiality rules, 3: Drafting explanation)
   useEffect(() => {
-    let timer1: NodeJS.Timeout;
-    let timer2: NodeJS.Timeout;
-    let timer3: NodeJS.Timeout;
-
-    timer1 = setTimeout(() => {
+    const timer1 = setTimeout(() => {
       setAnalysisStep(2);
     }, 600);
 
-    timer2 = setTimeout(() => {
+    const timer2 = setTimeout(() => {
       setAnalysisStep(3);
     }, 1200);
 
@@ -98,13 +108,13 @@ export const MaterialityModal: React.FC<MaterialityModalProps> = ({
           }
         }
       } catch (err) {
-        console.warn('Using template explanation due to model error:', err);
+        console.warn('[MaterialityModal] Using template explanation:', (err as Error).message);
       }
     };
 
     fetchExplanation();
 
-    timer3 = setTimeout(() => {
+    const timer3 = setTimeout(() => {
       setPhase('verdict');
     }, 1800);
 
@@ -124,7 +134,7 @@ export const MaterialityModal: React.FC<MaterialityModalProps> = ({
         } else {
           handleExecuteDecision('monitoring');
         }
-      }, 2500);
+      }, 3000);
       return () => clearTimeout(autoTimer);
     }
   }, [phase, isAutomated]);
@@ -143,94 +153,148 @@ export const MaterialityModal: React.FC<MaterialityModalProps> = ({
     }
   };
 
+  const isSanctionsTrigger = Boolean(
+    evaluation.sanctionsDesignation ||
+    evaluation.factors.some((f) => f.rule === 'SANCTIONS_DESIGNATION')
+  );
+
   const stampColor =
     evaluation.verdict === 'CRITICAL'
-      ? 'var(--coral)'
+      ? 'var(--rose)'
       : evaluation.verdict === 'MATERIAL'
       ? 'var(--amber)'
-      : 'var(--ink-2)';
+      : 'var(--grey)';
 
   const stampBg =
     evaluation.verdict === 'CRITICAL'
-      ? 'rgba(239, 68, 68, 0.15)'
+      ? 'var(--rose-s)'
       : evaluation.verdict === 'MATERIAL'
-      ? 'rgba(245, 158, 11, 0.15)'
-      : 'rgba(148, 163, 184, 0.15)';
+      ? 'var(--amber-s)'
+      : 'var(--bg2)';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="materiality-modal-title"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade"
+      style={{ backgroundColor: 'rgba(34, 30, 51, 0.45)' }}
+    >
       <div
-        className="w-full max-w-2xl rounded-2xl p-6 md:p-8 relative overflow-hidden transition-all duration-300 shadow-2xl border"
+        className="w-full max-w-2xl rounded-2xl p-6 md:p-8 relative overflow-hidden transition-all duration-300 anim-pop"
         style={{
-          backgroundColor: 'var(--bg-1)',
-          borderColor: 'var(--border)',
-          boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 50px rgba(59, 130, 246, 0.1)'
+          backgroundColor: 'var(--card)',
+          border: '1px solid var(--line)',
+          boxShadow: 'var(--sh3)',
+          color: 'var(--ink)'
         }}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-5 right-5 p-1.5 rounded-lg text-slate-400 hover:text-white transition-colors cursor-pointer"
+          type="button"
+          aria-label="Close determination modal"
+          className="absolute top-5 right-5 z-20 p-1.5 rounded-lg text-[var(--ink3)] hover:text-[var(--ink)] hover:bg-[var(--bg2)] transition-colors cursor-pointer focus-visible:ring-2"
         >
           <X className="w-5 h-5" />
         </button>
 
         {phase === 'analysing' ? (
           /* Analysis In-Progress Screen */
-          <div className="py-10 flex flex-col items-center text-center space-y-6 animate-pulse">
+          <div className="py-10 flex flex-col items-center text-center space-y-6">
             <div className="relative flex items-center justify-center">
-              <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center">
-                <div className="w-8 h-8 rounded-full bg-blue-500 animate-ping" />
-                <div className="absolute w-8 h-8 rounded-full bg-blue-500" />
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center"
+                style={{ backgroundColor: 'var(--primary-s)' }}
+              >
+                <div
+                  className="w-8 h-8 rounded-full animate-ping opacity-75"
+                  style={{ backgroundColor: 'var(--primary2)' }}
+                />
+                <div
+                  className="absolute w-8 h-8 rounded-full"
+                  style={{ backgroundColor: 'var(--primary)' }}
+                />
               </div>
             </div>
 
             <div>
-              <h3 className="text-lg font-bold" style={{ color: 'var(--ink-0)' }}>
+              <h3
+                id="materiality-modal-title"
+                className="text-lg font-bold font-display"
+                style={{ color: 'var(--ink)' }}
+              >
                 Evaluating Regulatory Materiality
               </h3>
-              <p className="text-xs font-mono mt-1" style={{ color: 'var(--ink-2)' }}>
+              <p className="text-xs font-mono-code mt-1" style={{ color: 'var(--ink2)' }}>
                 Comparing baseline graph with incoming registry modification
               </p>
             </div>
 
             <div className="w-full max-w-sm space-y-2.5 text-left">
-              <div className="flex items-center gap-3 p-2.5 rounded-lg bg-black/20 border border-slate-800">
+              <div
+                className="flex items-center gap-3 p-3 rounded-xl border text-xs"
+                style={{
+                  backgroundColor: 'var(--bg2)',
+                  borderColor: 'var(--line)'
+                }}
+              >
                 {analysisStep >= 1 ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: 'var(--emerald)' }} />
                 ) : (
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: 'var(--primary)' }} />
                 )}
-                <span className="text-xs font-medium text-slate-200">Re-resolving ownership traversal</span>
+                <span className="font-medium" style={{ color: 'var(--ink)' }}>
+                  Re-resolving ownership traversal
+                </span>
               </div>
 
-              <div className="flex items-center gap-3 p-2.5 rounded-lg bg-black/20 border border-slate-800">
+              <div
+                className="flex items-center gap-3 p-3 rounded-xl border text-xs"
+                style={{
+                  backgroundColor: 'var(--bg2)',
+                  borderColor: 'var(--line)'
+                }}
+              >
                 {analysisStep >= 2 ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: 'var(--emerald)' }} />
                 ) : (
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: 'var(--primary)' }} />
                 )}
-                <span className="text-xs font-medium text-slate-200">Applying deterministic materiality rules</span>
+                <span className="font-medium" style={{ color: 'var(--ink)' }}>
+                  Applying deterministic materiality rules
+                </span>
               </div>
 
-              <div className="flex items-center gap-3 p-2.5 rounded-lg bg-black/20 border border-slate-800">
+              <div
+                className="flex items-center gap-3 p-3 rounded-xl border text-xs"
+                style={{
+                  backgroundColor: 'var(--bg2)',
+                  borderColor: 'var(--line)'
+                }}
+              >
                 {analysisStep >= 3 ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <CheckCircle2 className="w-4 h-4 shrink-0" style={{ color: 'var(--emerald)' }} />
                 ) : (
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                  <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: 'var(--primary)' }} />
                 )}
-                <span className="text-xs font-medium text-slate-200">Drafting regulatory compliance explanation</span>
+                <span className="font-medium" style={{ color: 'var(--ink)' }}>
+                  Drafting regulatory compliance explanation
+                </span>
               </div>
             </div>
           </div>
         ) : (
           /* Verdict Result Modal */
-          <div className="space-y-6 animate-scale-up">
-            {/* Header with Title and Verdict Stamp */}
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b pb-5" style={{ borderColor: 'var(--border)' }}>
-              <div className="flex items-center gap-3">
+          <div className="space-y-6">
+            {/* Header with Title and Verdict Stamp - pr-16 md:pr-20 and mr-6 guarantee >16px clear space from top-right close button at every width */}
+            <div
+              className="flex flex-wrap items-start justify-between gap-4 border-b pb-5 pr-16 md:pr-20"
+              style={{ borderColor: 'var(--line)' }}
+            >
+              <div className="flex items-center gap-3.5 min-w-0 pr-2">
                 <div
-                  className="p-3 rounded-xl border"
+                  className="w-12 h-12 rounded-xl border flex items-center justify-center shrink-0"
                   style={{
                     backgroundColor: stampBg,
                     borderColor: stampColor
@@ -247,22 +311,23 @@ export const MaterialityModal: React.FC<MaterialityModalProps> = ({
 
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono uppercase tracking-wider font-semibold" style={{ color: 'var(--ink-2)' }}>
+                    <span className="section-label">
                       Compliance Determination
                     </span>
                   </div>
-                  <h2 className="text-xl font-bold" style={{ color: 'var(--ink-0)' }}>
+                  <h2
+                    id="materiality-modal-title"
+                    className="text-xl font-bold font-display"
+                    style={{ color: 'var(--ink)' }}
+                  >
                     {evaluation.changedPartyName}
                   </h2>
-                  <p className="text-xs font-mono mt-0.5" style={{ color: 'var(--ink-2)' }}>
-                    Confidence index: <span className="text-blue-400 font-semibold">{evaluation.confidence}%</span>
-                  </p>
                 </div>
               </div>
 
               {/* Verdict Stamp */}
               <div
-                className="px-4 py-1.5 rounded-lg font-mono font-extrabold text-sm uppercase tracking-widest border-2 shadow-lg animate-stamp"
+                className="px-4 py-1.5 rounded-lg font-mono-code font-extrabold text-sm uppercase tracking-widest border-2 shadow-sm anim-stamp shrink-0 mr-6"
                 style={{
                   backgroundColor: stampBg,
                   borderColor: stampColor,
@@ -273,17 +338,17 @@ export const MaterialityModal: React.FC<MaterialityModalProps> = ({
               </div>
             </div>
 
-            {/* Delta Row */}
+            {/* Delta Row with Clearly Labelled Assessment Confidence and Source Confidence */}
             <div
-              className="p-3.5 rounded-xl flex items-center justify-between text-xs font-mono border"
+              className="p-3.5 rounded-xl flex flex-wrap items-center justify-between gap-3 text-xs font-mono-code border"
               style={{
-                backgroundColor: 'var(--bg-2)',
-                borderColor: 'var(--border)'
+                backgroundColor: 'var(--bg2)',
+                borderColor: 'var(--line)'
               }}
             >
               <div className="flex items-center gap-2">
-                <span style={{ color: 'var(--ink-2)' }}>Shareholding Transition:</span>
-                <span className="line-through" style={{ color: 'var(--ink-3)' }}>
+                <span style={{ color: 'var(--ink2)' }}>Shareholding Transition:</span>
+                <span className="line-through" style={{ color: 'var(--ink3)' }}>
                   {evaluation.oldValueText}
                 </span>
                 <ArrowRight className="w-3.5 h-3.5" style={{ color: 'var(--primary)' }} />
@@ -292,9 +357,19 @@ export const MaterialityModal: React.FC<MaterialityModalProps> = ({
                 </span>
               </div>
 
-              <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--ink-2)' }}>
-                <span>Source Verification:</span>
-                <span className="text-emerald-400 font-semibold">96% Confident</span>
+              <div className="flex items-center gap-4 text-xs">
+                <div className="flex items-center gap-1.5">
+                  <span style={{ color: 'var(--ink2)' }}>Assessment confidence:</span>
+                  <span className="font-bold tabular-nums" style={{ color: 'var(--ink)' }}>
+                    {evaluation.confidence}%
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span style={{ color: 'var(--ink2)' }}>Source confidence:</span>
+                  <span className="font-bold tabular-nums" style={{ color: 'var(--emerald)' }}>
+                    {evaluation.sourceConfidencePct || 96}%
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -302,119 +377,301 @@ export const MaterialityModal: React.FC<MaterialityModalProps> = ({
             <div
               className="p-4 rounded-xl space-y-2 border relative overflow-hidden"
               style={{
-                background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(30, 41, 59, 0.5) 100%)',
-                borderColor: 'rgba(59, 130, 246, 0.3)'
+                backgroundColor: 'var(--bg2)',
+                borderColor: 'var(--line)'
               }}
             >
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5 text-xs font-semibold" style={{ color: 'var(--primary)' }}>
+                <div
+                  className="flex items-center gap-1.5 text-xs font-semibold"
+                  style={{ color: 'var(--primary)' }}
+                >
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Compliance Rationale</span>
                 </div>
 
                 <span
-                  className="text-[10px] font-mono px-2 py-0.5 rounded font-bold uppercase tracking-wider"
+                  className="text-[10px] font-mono-code px-2 py-0.5 rounded font-bold uppercase tracking-wider"
                   style={{
-                    backgroundColor: isAiGenerated ? 'rgba(59, 130, 246, 0.2)' : 'rgba(148, 163, 184, 0.2)',
-                    color: isAiGenerated ? 'var(--primary)' : 'var(--ink-2)'
+                    backgroundColor: isAiGenerated ? 'var(--primary-s)' : 'var(--line)',
+                    color: isAiGenerated ? 'var(--primary)' : 'var(--ink2)'
                   }}
                 >
                   {isAiGenerated ? 'AI-Generated Rationale' : 'Rule Template'}
                 </span>
               </div>
 
-              <p className="text-xs leading-relaxed" style={{ color: 'var(--ink-0)' }}>
+              <p className="text-xs leading-relaxed" style={{ color: 'var(--ink)' }}>
                 {explanation}
               </p>
             </div>
 
-            {/* Governing Regulation Box */}
-            <div
-              className="p-3.5 rounded-xl border-l-4 text-xs font-mono space-y-1"
-              style={{
-                backgroundColor: 'var(--bg-2)',
-                borderLeftColor: 'var(--primary)',
-                borderTop: '1px solid var(--border)',
-                borderRight: '1px solid var(--border)',
-                borderBottom: '1px solid var(--border)'
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-semibold" style={{ color: 'var(--ink-0)' }}>
-                  {evaluation.citation.regulationName}
-                </span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
-                  Threshold: {evaluation.citation.thresholdPct}%
-                </span>
+            {/* Governing Regulation / Sanctions Designation Box (Trigger-Matched per Item 8) */}
+            {isSanctionsTrigger ? (
+              <div
+                className="p-3.5 rounded-xl border-l-4 text-xs font-mono-code space-y-1.5"
+                style={{
+                  backgroundColor: 'var(--rose-s)',
+                  borderLeftColor: 'var(--rose)',
+                  borderTop: '1px solid rgba(225, 29, 72, 0.2)',
+                  borderRight: '1px solid rgba(225, 29, 72, 0.2)',
+                  borderBottom: '1px solid rgba(225, 29, 72, 0.2)'
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold" style={{ color: 'var(--rose)' }}>
+                    Official Sanctions Designation
+                  </span>
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded font-mono-code font-bold uppercase"
+                    style={{ backgroundColor: 'rgba(225, 29, 72, 0.15)', color: 'var(--rose)' }}
+                  >
+                    OpenSanctions ID: {evaluation.sanctionsDesignation?.id || 'NK-VDEKGF5ZgHAkye4kGuUXs3'}
+                  </span>
+                </div>
+                <p className="text-[11px] leading-relaxed" style={{ color: 'var(--ink)' }}>
+                  Programmes: {evaluation.sanctionsDesignation?.programme || 'Russia-related sanctions, designated by the US (OFAC), the UK, the EU and Australia'}
+                </p>
+                <div className="flex items-center gap-1.5 text-[10px] mt-1" style={{ color: 'var(--ink3)' }}>
+                  <span>Source: OpenSanctions (CC BY-NC 4.0)</span>
+                  <span>·</span>
+                  <span>Jurisdiction: {evaluation.sanctionsDesignation?.country || 'Russia'}</span>
+                </div>
               </div>
-              <p className="text-[11px]" style={{ color: 'var(--ink-2)' }}>
-                Statutory Basis: {evaluation.citation.statutoryBasis} · Status:{' '}
-                {evaluation.citation.verified ? 'Verified Law' : 'Regulatory Standard'}
-              </p>
-            </div>
+            ) : (
+              <div
+                className="p-3.5 rounded-xl border-l-4 text-xs font-mono-code space-y-1"
+                style={{
+                  backgroundColor: 'var(--bg2)',
+                  borderLeftColor: 'var(--primary)',
+                  borderTop: '1px solid var(--line)',
+                  borderRight: '1px solid var(--line)',
+                  borderBottom: '1px solid var(--line)'
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold" style={{ color: 'var(--ink)' }}>
+                    {evaluation.citation.formattedCitation || `${evaluation.citation.regulationName} · more than ${evaluation.citation.thresholdPct}%`}
+                  </span>
+                  <span
+                    className="text-[10px] px-2 py-0.5 rounded font-semibold font-mono-code"
+                    style={{ backgroundColor: 'var(--primary-s)', color: 'var(--primary)' }}
+                  >
+                    Threshold: {evaluation.citation.thresholdPct}%
+                  </span>
+                </div>
+                <p className="text-[11px]" style={{ color: 'var(--ink2)' }}>
+                  Statutory Basis: {evaluation.citation.regulationName} · Status:{' '}
+                  {evaluation.citation.verified ? 'Verified Law' : 'Regulatory Standard'}
+                </p>
+              </div>
+            )}
 
-            {/* Dismiss Reason Input (If toggled) */}
+            {/* Inline Confirmation for Monitor Only per Item 11 */}
+            {confirmingMonitor && (
+              <div
+                className="p-3.5 rounded-xl border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-fade"
+                style={{
+                  backgroundColor: 'var(--amber-s)',
+                  borderColor: 'rgba(217, 119, 6, 0.3)'
+                }}
+              >
+                <div className="flex items-center gap-2 text-xs">
+                  <AlertTriangle className="w-4 h-4 text-[var(--amber)] shrink-0" />
+                  <span className="text-[var(--ink)] font-medium">
+                    Discard review and set event to monitor only? No case will be opened.
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingMonitor(false)}
+                    disabled={submitting}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border bg-white text-[var(--ink2)] hover:bg-[var(--bg2)] cursor-pointer focus-visible:ring-2"
+                    style={{ borderColor: 'var(--line)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExecuteDecision('monitoring')}
+                    disabled={submitting}
+                    title={submitting ? 'Committing decision...' : 'Confirm setting to monitor only'}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold text-white cursor-pointer shadow-xs hover:opacity-95 disabled:opacity-50 focus-visible:ring-2 flex items-center gap-1.5"
+                    style={{ backgroundColor: 'var(--amber)' }}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Committing...</span>
+                      </>
+                    ) : (
+                      <span>Confirm Monitor Only</span>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Dismiss Reason & Confirmation Input per Item 11 */}
             {showDismissInput && (
-              <div className="space-y-2 p-3.5 rounded-xl bg-red-950/20 border border-red-800/40 animate-fade-in">
-                <label className="text-xs font-semibold text-red-300">
-                  Mandatory Dismissal Rationale:
-                </label>
+              <div
+                className="space-y-3 p-3.5 rounded-xl border animate-fade"
+                style={{
+                  backgroundColor: 'var(--rose-s)',
+                  borderColor: 'rgba(225, 29, 72, 0.3)'
+                }}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <label className="text-xs font-semibold flex items-center gap-1.5" style={{ color: 'var(--rose)' }}>
+                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                      <span>Mandatory Dismissal Rationale (Discards Review)</span>
+                    </label>
+                    <p className="text-[11px] text-[var(--ink2)] mt-0.5">
+                      Dismissing will discard this review without creating a compliance case.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDismissInput(false);
+                      setDismissReason('');
+                    }}
+                    className="text-[11px] text-[var(--ink3)] hover:text-[var(--ink)] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+
                 <input
                   type="text"
                   required
                   value={dismissReason}
                   onChange={(e) => setDismissReason(e.target.value)}
-                  placeholder="State compliance justification for dismissal..."
-                  className="w-full px-3 py-2 text-xs rounded-lg bg-black/40 border border-red-700/50 text-white outline-none focus:border-red-500"
+                  placeholder="State compliance justification for dismissal (required)..."
+                  className="w-full px-3 py-2 text-xs rounded-lg outline-none focus-visible:ring-2 bg-white"
+                  style={{
+                    border: '1px solid var(--line)',
+                    color: 'var(--ink)'
+                  }}
                 />
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDismissInput(false);
+                      setDismissReason('');
+                    }}
+                    disabled={submitting}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium border bg-white text-[var(--ink2)] hover:bg-[var(--bg2)] cursor-pointer focus-visible:ring-2"
+                    style={{ borderColor: 'var(--line)' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExecuteDecision('dismissed')}
+                    disabled={submitting || !dismissReason.trim()}
+                    title={
+                      submitting
+                        ? 'Confirming dismissal...'
+                        : !dismissReason.trim()
+                        ? 'Mandatory justification required to dismiss'
+                        : 'Confirm dismissal and discard review'
+                    }
+                    className="px-4 py-1.5 rounded-xl text-xs font-semibold text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus-visible:ring-2 flex items-center gap-1.5"
+                    style={{ backgroundColor: 'var(--rose)' }}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        <span>Confirming...</span>
+                      </>
+                    ) : (
+                      <span>Confirm Dismissal</span>
+                    )}
+                  </button>
+                </div>
               </div>
             )}
 
             {/* Footer Buttons */}
-            <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t" style={{ borderColor: 'var(--border)' }}>
+            <div
+              className="pt-3 flex flex-wrap items-center justify-between gap-3 border-t"
+              style={{ borderColor: 'var(--line)' }}
+            >
               {isAutomated ? (
-                <div className="flex items-center gap-2 text-xs font-mono text-amber-400">
+                <div
+                  className="flex items-center gap-2 text-xs font-mono-code"
+                  style={{ color: 'var(--amber)' }}
+                >
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <span>Automated mode active: agent automatically committing decision...</span>
                 </div>
               ) : (
                 <>
                   <div className="flex items-center gap-2">
-                    {showDismissInput ? (
+                    {!showDismissInput && (
                       <button
-                        onClick={() => handleExecuteDecision('dismissed')}
-                        disabled={submitting || !dismissReason.trim()}
-                        className="py-2 px-4 rounded-xl text-xs font-medium bg-red-600 hover:bg-red-700 text-white transition-all cursor-pointer disabled:opacity-50"
-                      >
-                        {submitting ? 'Confirming...' : 'Confirm Dismissal'}
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setShowDismissInput(true)}
-                        className="py-2 px-4 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-all cursor-pointer"
+                        type="button"
+                        onClick={() => {
+                          setShowDismissInput(true);
+                          setConfirmingMonitor(false);
+                        }}
+                        disabled={submitting}
+                        title={submitting ? 'Decision in progress...' : 'Dismiss event and record justification'}
+                        className="py-2 px-4 rounded-xl text-xs font-medium transition-all cursor-pointer border focus-visible:ring-2 hover:bg-[var(--bg2)] disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{
+                          backgroundColor: 'transparent',
+                          borderColor: 'var(--line)',
+                          color: 'var(--ink2)'
+                        }}
                       >
                         Dismiss
                       </button>
                     )}
 
-                    <button
-                      onClick={() => handleExecuteDecision('monitoring')}
-                      disabled={submitting}
-                      className="py-2 px-4 rounded-xl text-xs font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition-all cursor-pointer"
-                    >
-                      Monitor only
-                    </button>
+                    {!confirmingMonitor && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setConfirmingMonitor(true);
+                          setShowDismissInput(false);
+                        }}
+                        disabled={submitting}
+                        title={submitting ? 'Decision in progress...' : 'Keep event under observation without case generation'}
+                        className="py-2 px-4 rounded-xl text-xs font-semibold transition-all cursor-pointer border focus-visible:ring-2 hover:bg-[var(--amber-s)] disabled:opacity-50 disabled:cursor-not-allowed"
+                        style={{
+                          backgroundColor: 'var(--bg2)',
+                          borderColor: 'var(--line)',
+                          color: 'var(--amber)'
+                        }}
+                      >
+                        Monitor only
+                      </button>
+                    )}
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => handleExecuteDecision('accepted')}
                     disabled={submitting}
-                    className="py-2.5 px-6 rounded-xl text-xs font-bold text-white shadow-lg cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98]"
+                    title={submitting ? 'Committing decision and initiating KYC agents...' : 'Accept determination and execute KYC screening'}
+                    className="py-2.5 px-6 rounded-xl text-xs font-bold text-white shadow-sm cursor-pointer transition-all hover:opacity-95 active:scale-[0.98] focus-visible:ring-2 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                     style={{
-                      background: 'linear-gradient(135deg, var(--emerald) 0%, #059669 100%)'
+                      backgroundColor: 'var(--emerald)'
                     }}
                   >
-                    {submitting ? 'Committing...' : 'Accept and run KYC agents'}
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Committing...</span>
+                      </>
+                    ) : (
+                      <span>Accept and run KYC agents</span>
+                    )}
                   </button>
                 </>
               )}

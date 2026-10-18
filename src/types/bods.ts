@@ -4,7 +4,7 @@
  */
 
 export type EntityType = 'company' | 'trust' | 'partnership' | 'fund' | 'foundation';
-export type EntityStatus = 'active' | 'dissolved';
+export type EntityStatus = 'active' | 'dissolved' | 'sanctioned';
 
 export interface EntityRecord {
   id: string;
@@ -15,6 +15,7 @@ export interface EntityRecord {
   countryFlag: string;
   registrationId: string;
   status: EntityStatus;
+  sanctionsProgramme?: string;
   registeredAddress: string;
   source: string;
   asOfDate: string;
@@ -191,3 +192,6 @@ export interface BodsSeedDataset {
   jurisdictionRules: JurisdictionRule[];
   groups: CorporateGroupSeed[];
 }
+
+export type BodsPerson = PersonRecord;
+export type BodsEntity = EntityRecord;

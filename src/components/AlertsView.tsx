@@ -1,17 +1,17 @@
 /**
- * Sentinel AI — Alerts & Live Monitoring View
- * Built per Custom Instructions §11 & prompt Section 3a:
- * - Watches events across all onboarded customers in real time
- * - Filter tabs: Pending, Monitoring, Dismissed, Accepted
- * - Supervisor demo panel: Customer selector + "Inject registry change"
- * - "Review" button opens customer workspace with monitoring banner active
- * - Automated mode processing indicator
- * - OpenSanctions attribution
+ * Sentinel AI — Alerts & Perpetual Monitoring View
+ * Conforms strictly to Item 6 & DESIGN.md:
+ * - Card list preserved with neutral surfaces
+ * - Severity displayed as a subtle 6px dot badge on a neutral pill
+ * - Single amber left border ONLY on pending alerts
+ * - Injection panel moved to "Simulate registry change" button in header that opens a dialog
+ * - Clearly labelled as a simulation in PREVIEW mode
+ * - Solid Sora 24px --ink title, WCAG AA compliant text
  */
 
 import React, { useState, useEffect } from 'react';
-import { db, writeAuditRecord } from '../lib/firebase';
-import { collection, query, onSnapshot, doc, updateDoc, setDoc } from 'firebase/firestore';
+import { db, writeAuditRecord, handleFirestoreError, OperationType } from '../lib/firebase';
+import { collection, query, onSnapshot } from 'firebase/firestore';
 import { bodsRepository } from '../data/repository';
 import { useAuth } from '../context/AuthContext';
 import { getEventFeedAdapter } from '../adapters/eventFeedAdapter';
@@ -20,15 +20,11 @@ import {
   Radio,
   Clock,
   ArrowRight,
-  Filter,
   CheckCircle2,
-  XCircle,
-  Eye,
-  AlertTriangle,
-  Building2,
   Zap,
-  Info,
-  ExternalLink
+  X,
+  Building2,
+  Loader2
 } from 'lucide-react';
 
 export interface AlertEventRecord {
@@ -61,46 +57,56 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
   const { user, profile, isSupervisor } = useAuth();
   const [events, setEvents] = useState<AlertEventRecord[]>([]);
   const [filterStatus, setFilterStatus] = useState<'pending' | 'monitoring' | 'dismissed' | 'accepted'>('pending');
+  const [showSimulateDialog, setShowSimulateDialog] = useState(false);
   const [selectedCustomerForInjection, setSelectedCustomerForInjection] = useState<string>('grp-01-aurelia');
   const [injecting, setInjecting] = useState(false);
   const [injectionSuccess, setInjectionSuccess] = useState<string | null>(null);
+  const [injectionError, setInjectionError] = useState<string | null>(null);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   const groups = bodsRepository.getGroups();
 
   useEffect(() => {
+    if (!user) return;
     const evCol = collection(db, 'events');
     const q = query(evCol);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list: AlertEventRecord[] = [];
-      snapshot.forEach((snap) => {
-        const d = snap.data();
-        list.push({
-          id: snap.id,
-          customerId: d.customerId,
-          groupId: d.groupId,
-          templateId: d.templateId,
-          changeType: d.changeType,
-          payload: d.data || d.payload || {},
-          description: d.description,
-          source: d.source,
-          confidence: d.confidence,
-          detectedAt: d.detectedAt,
-          status: d.status || 'pending',
-          decidedBy: d.decidedBy,
-          decidedAt: d.decidedAt,
-          dismissReason: d.dismissReason,
-          _simulation: d._simulation
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: AlertEventRecord[] = [];
+        snapshot.forEach((snap) => {
+          const d = snap.data();
+          list.push({
+            id: snap.id,
+            customerId: d.customerId,
+            groupId: d.groupId,
+            templateId: d.templateId,
+            changeType: d.changeType,
+            payload: d.data || d.payload || {},
+            description: d.description,
+            source: d.source,
+            confidence: d.confidence,
+            detectedAt: d.detectedAt,
+            status: d.status || 'pending',
+            decidedBy: d.decidedBy,
+            decidedAt: d.decidedAt,
+            dismissReason: d.dismissReason,
+            _simulation: d._simulation
+          });
         });
-      });
 
-      // Sort descending by detectedAt
-      list.sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime());
-      setEvents(list);
-    });
+        // Sort descending by detectedAt
+        list.sort((a, b) => new Date(b.detectedAt).getTime() - new Date(a.detectedAt).getTime());
+        setEvents(list);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.GET, 'events');
+      }
+    );
 
     return () => unsubscribe();
-  }, []);
+  }, [user]);
 
   const handleInjectChange = async () => {
     if (!isSupervisor) return;
@@ -117,15 +123,18 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
       const existingFiredTemplates = new Set(events.filter(e => e.groupId === group.id).map(e => e.templateId));
       let template = group.monitoringEventTemplates.find(t => !existingFiredTemplates.has(t.id));
       if (!template) {
-        template = group.monitoringEventTemplates[0]; // fallback loop
+        template = group.monitoringEventTemplates[0];
       }
 
-      const newEventId = `evt-${Date.now()}`;
+      const custId = `CUS-2026-${group.id.slice(-4)}`;
+      const cleanCustId = custId.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const cleanTplId = template.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+      const newEventId = `evt_${cleanCustId}_${cleanTplId}`;
       const adapter = getEventFeedAdapter();
 
       await adapter.publishEvent({
         id: newEventId,
-        customerId: `CUS-2026-${group.id.slice(-4)}`,
+        customerId: custId,
         groupId: group.id,
         templateId: template.id,
         changeType: template.changeType as any,
@@ -150,8 +159,11 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
         });
       }
 
-      setInjectionSuccess(`Injected "${template.description}" via ${adapter.mode()} adapter.`);
-      setTimeout(() => setInjectionSuccess(null), 4000);
+      setInjectionSuccess(`Simulation active: injected change for ${group.name}.`);
+      setTimeout(() => {
+        setInjectionSuccess(null);
+        setShowSimulateDialog(false);
+      }, 1800);
     } catch (err: any) {
       console.error('Failed to inject change:', err);
       alert(`Injection failed: ${err.message}`);
@@ -164,218 +176,354 @@ export const AlertsView: React.FC<AlertsViewProps> = ({
   const pendingCount = events.filter((e) => e.status === 'pending').length;
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-16">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <Radio className="w-4 h-4 text-emerald-400 animate-pulse" />
-            <span className="text-xs font-mono font-semibold tracking-wider uppercase text-emerald-400">
-              Live Registry Watch
-            </span>
-          </div>
-          <h1
-            className="text-2xl md:text-3xl font-bold tracking-tight mt-1"
-            style={{
-              fontFamily: "'Sora', sans-serif",
-              background: 'linear-gradient(135deg, #FFFFFF 0%, #93C5FD 50%, #3B82F6 100%)',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent'
-            }}
-          >
-            Alerts &amp; Perpetual Monitoring
-          </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--ink-2)' }}>
-            Continuous ingestion of corporate registry changes across all onboarded banking clients.
-          </p>
-        </div>
-
-        {/* Pending Counter */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl border bg-black/30" style={{ borderColor: 'var(--border)' }}>
-          <Bell className="w-4 h-4 text-amber-400" />
-          <span className="text-xs font-mono font-bold" style={{ color: 'var(--ink-0)' }}>
-            {pendingCount} Pending
-          </span>
-        </div>
-      </div>
-
-      {/* Supervisor Demo Panel */}
-      {isSupervisor && (
-        <div
-          className="rounded-2xl p-4 md:p-5 border transition-all shadow-lg"
-          style={{
-            backgroundColor: 'rgba(30, 41, 59, 0.4)',
-            borderColor: 'rgba(59, 130, 246, 0.3)',
-            boxShadow: '0 0 30px rgba(59, 130, 246, 0.08)'
-          }}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+    <div className="h-full w-full overflow-y-auto px-6 md:px-8 py-7 anim-vin select-text">
+      <div className="max-w-4xl mx-auto space-y-6">
+        {/* Page Header per Item 6 */}
+        <div className="flex flex-wrap items-start justify-between gap-4 pb-2 border-b border-[var(--line)]">
+          <div className="space-y-1 max-w-2xl">
             <div className="flex items-center gap-2">
-              <Zap className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-200">
-                Supervisor Registry Feed Simulator
+              <Radio className="w-3.5 h-3.5 text-[var(--emerald)] animate-pulse" />
+              <span className="section-label" style={{ color: 'var(--emerald)' }}>
+                Live Registry Watch · PREVIEW
               </span>
             </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-400">
-              Adapter: PREVIEW / PUBSUB
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex-1 min-w-[240px]">
-              <select
-                value={selectedCustomerForInjection}
-                onChange={(e) => setSelectedCustomerForInjection(e.target.value)}
-                className="w-full px-3 py-2 text-xs rounded-xl bg-slate-900 border border-slate-700 text-slate-200 outline-none cursor-pointer"
-              >
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.rootFlag} {g.name} ({g.monitoringEventTemplates.length} templates)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              onClick={handleInjectChange}
-              disabled={injecting}
-              className="py-2 px-4 rounded-xl text-xs font-semibold bg-blue-600 hover:bg-blue-500 text-white transition-all cursor-pointer shadow-md disabled:opacity-50"
+            <h1
+              className="font-display font-bold text-2xl tracking-tight"
+              style={{ color: 'var(--ink)' }}
             >
-              {injecting ? 'Publishing Event...' : 'Inject Registry Change'}
-            </button>
+              Alerts &amp; Perpetual Monitoring
+            </h1>
+            <p className="text-sm leading-relaxed" style={{ color: 'var(--ink2)' }}>
+              Continuous ingestion of corporate registry changes across all onboarded banking clients.
+            </p>
           </div>
 
-          {injectionSuccess && (
-            <p className="text-xs font-mono text-emerald-400 mt-2 flex items-center gap-1.5 animate-fade-in">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{injectionSuccess}</span>
-            </p>
-          )}
+          <div className="flex items-center gap-2.5">
+            {/* Pending Counter */}
+            <div
+              className="flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-mono-code"
+              style={{
+                backgroundColor: 'var(--bg2)',
+                borderColor: 'var(--line)',
+                color: 'var(--ink)',
+              }}
+            >
+              <span className="w-2 h-2 rounded-full bg-[var(--amber)]" />
+              <span className="font-bold tabular-nums">{pendingCount} Pending</span>
+            </div>
+          </div>
         </div>
-      )}
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 border-b pb-3" style={{ borderColor: 'var(--border)' }}>
-        {(['pending', 'monitoring', 'accepted', 'dismissed'] as const).map((st) => (
-          <button
-            key={st}
-            onClick={() => setFilterStatus(st)}
-            className="text-xs font-mono font-semibold px-3 py-1.5 rounded-lg transition-all capitalize cursor-pointer"
+        {/* Filter Tabs */}
+        <div className="flex items-center gap-2 border-b pb-3" style={{ borderColor: 'var(--line)' }}>
+          {(['pending', 'monitoring', 'accepted', 'dismissed'] as const).map((st) => (
+            <button
+              key={st}
+              type="button"
+              onClick={() => setFilterStatus(st)}
+              className="text-xs font-mono-code font-semibold px-3 py-1.5 rounded-lg transition-colors capitalize cursor-pointer focus-visible:ring-2"
+              style={{
+                backgroundColor: filterStatus === st ? 'var(--card)' : 'transparent',
+                color: filterStatus === st ? 'var(--ink)' : 'var(--ink2)',
+                border: filterStatus === st ? '1px solid var(--line)' : '1px solid transparent',
+                boxShadow: filterStatus === st ? 'var(--sh1)' : 'none',
+              }}
+            >
+              {st}
+              {st === 'pending' && pendingCount > 0 && (
+                <span
+                  className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] tabular-nums"
+                  style={{
+                    backgroundColor: 'var(--amber-s)',
+                    color: 'var(--amber)',
+                  }}
+                >
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Alerts List */}
+        {filtered.length === 0 ? (
+          <div
+            className="text-center py-16 rounded-2xl border p-8"
             style={{
-              backgroundColor: filterStatus === st ? 'var(--bg-2)' : 'transparent',
-              color: filterStatus === st ? 'var(--ink-0)' : 'var(--ink-2)',
-              border: filterStatus === st ? '1px solid var(--border)' : '1px solid transparent'
+              backgroundColor: 'var(--card)',
+              borderColor: 'var(--line)',
             }}
           >
-            {st}
-            {st === 'pending' && pendingCount > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.2 rounded-full text-[10px] bg-amber-500/20 text-amber-400">
-                {pendingCount}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
+            <CheckCircle2 className="w-8 h-8 text-[var(--emerald)] mx-auto mb-3 opacity-80" />
+            <h3 className="text-sm font-semibold font-display" style={{ color: 'var(--ink)' }}>
+              All onboarded customers are being watched.
+            </h3>
+            <p className="text-xs font-mono-code mt-1" style={{ color: 'var(--ink2)' }}>
+              No changes currently require review in the "{filterStatus}" queue.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3.5">
+            {filtered.map((item) => {
+              const group = groups.find((g) => g.id === item.groupId);
+              const isPending = item.status === 'pending';
 
-      {/* Alerts List */}
-      {filtered.length === 0 ? (
-        <div
-          className="text-center py-16 rounded-2xl border border-dashed p-8"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <CheckCircle2 className="w-8 h-8 text-emerald-400 mx-auto mb-3 opacity-80" />
-          <h3 className="text-sm font-semibold" style={{ color: 'var(--ink-0)' }}>
-            All onboarded customers are being watched.
-          </h3>
-          <p className="text-xs font-mono mt-1" style={{ color: 'var(--ink-2)' }}>
-            No changes currently require review in the "{filterStatus}" queue.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {filtered.map((item) => {
-            const group = groups.find((g) => g.id === item.groupId);
-            const isPending = item.status === 'pending';
+              // Determine severity badge per Item 6 (6px dot + text in --ink2 on a neutral --bg2 pill)
+              const isCritical =
+                item.description.toLowerCase().includes('sanction') ||
+                item.templateId.includes('sanction');
+              const isMaterial =
+                !isCritical &&
+                (item.changeType === 'SHARE_CHANGE' || item.changeType === 'NEW_RELATIONSHIP');
+              const severityDotColor = isCritical
+                ? 'var(--rose)'
+                : isMaterial
+                ? 'var(--amber)'
+                : 'var(--grey)';
+              const severityLabel = isCritical
+                ? 'CRITICAL'
+                : isMaterial
+                ? 'MATERIAL'
+                : 'MONITOR';
 
-            return (
-              <div
-                key={item.id}
-                className="rounded-2xl p-5 border transition-all duration-200 relative overflow-hidden shadow-lg animate-slide-in"
-                style={{
-                  backgroundColor: 'var(--bg-1)',
-                  borderColor: isPending ? 'rgba(245, 158, 11, 0.4)' : 'var(--border)',
-                  borderLeftWidth: '5px',
-                  borderLeftColor: isPending ? 'var(--amber)' : item.status === 'accepted' ? 'var(--emerald)' : 'var(--ink-3)'
-                }}
-              >
-                {item._simulation && (
-                  <span className="absolute top-3 right-4 text-[9px] font-mono uppercase tracking-wider text-slate-500 bg-slate-800 px-1.5 py-0.5 rounded">
-                    Simulated Change
-                  </span>
-                )}
+              const isReviewingThis = reviewingId === item.id;
 
-                <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">{group?.rootFlag || '🏢'}</span>
-                    <h3 className="text-sm font-bold" style={{ color: 'var(--ink-0)' }}>
-                      {group?.name || item.groupId}
-                    </h3>
-                    <span className="text-xs font-mono text-slate-400">({item.customerId})</span>
+              const handleStartReview = async () => {
+                if (reviewingId) return;
+                setReviewingId(item.id);
+                try {
+                  await onReviewAlert(item.groupId, item.customerId, item);
+                } finally {
+                  setReviewingId(null);
+                }
+              };
+
+              return (
+                <div
+                  key={item.id}
+                  className="rounded-xl p-4 sm:p-5 border transition-all duration-200 relative overflow-hidden anim-slin"
+                  style={{
+                    backgroundColor: 'var(--card)',
+                    borderColor: 'var(--line)',
+                    borderLeft: isPending ? '4px solid var(--amber)' : '1px solid var(--line)',
+                    boxShadow: 'var(--sh1)',
+                  }}
+                >
+                  {/* Stacked Card Layout below 700px with labelled rows per Item 4 */}
+                  <div className="block min-[700px]:hidden space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-base shrink-0">{group?.rootFlag || '🏢'}</span>
+                        <h3 className="text-sm font-bold font-display truncate" style={{ color: 'var(--ink)' }}>
+                          {group?.name || item.groupId}
+                        </h3>
+                      </div>
+
+                      <div
+                        className="px-2.5 py-0.5 rounded-full text-[10px] font-mono-code font-bold uppercase tracking-wider flex items-center gap-1.5 border shrink-0"
+                        style={{
+                          backgroundColor: 'var(--bg2)',
+                          borderColor: 'var(--line)',
+                          color: 'var(--ink2)',
+                        }}
+                      >
+                        <span
+                          className="w-1.5 h-1.5 rounded-full shrink-0"
+                          style={{ backgroundColor: severityDotColor }}
+                        />
+                        <span>{severityLabel}</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[var(--ink3)] font-mono-code text-[11px] shrink-0">Customer ID:</span>
+                        <span className="font-mono-code text-[var(--ink2)]">{item.customerId}</span>
+                      </div>
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-[var(--ink3)] font-mono-code text-[11px] shrink-0">Detected:</span>
+                        <span className="font-mono-code text-[var(--ink2)]">{new Date(item.detectedAt).toLocaleString('en-GB')}</span>
+                      </div>
+                      <div className="space-y-1 pt-0.5">
+                        <span className="text-[var(--ink3)] font-mono-code text-[11px] block">Description:</span>
+                        <p className="text-xs leading-relaxed text-[var(--ink)] pl-2 border-l-2 border-[var(--line)]">
+                          {item.description}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-mono-code text-[var(--ink3)]">
+                        <span>Source: {item.source}</span>
+                        <span>·</span>
+                        <span>Confidence: {Math.round(item.confidence * 100)}%</span>
+                        {item.decidedBy && (
+                          <>
+                            <span>·</span>
+                            <span>Decided: {item.status.toUpperCase()}</span>
+                          </>
+                        )}
+                        {item._simulation && (
+                          <>
+                            <span>·</span>
+                            <span className="text-[var(--amber)]">Simulation feed</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {isPending && (
+                      <div className="pt-2 border-t border-[var(--line2)] flex justify-end">
+                        {governanceMode === 'automated' ? (
+                          <span className="text-xs text-[var(--amber)] flex items-center gap-1.5 font-semibold">
+                            <Radio className="w-3.5 h-3.5 animate-pulse" />
+                            <span>Agent evaluating...</span>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            disabled={isReviewingThis}
+                            title={isReviewingThis ? 'Opening review in flight...' : 'Review change event'}
+                            onClick={handleStartReview}
+                            className="w-full py-2 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:opacity-95 active:scale-95 focus-visible:ring-2 text-white disabled:opacity-50 disabled:cursor-wait"
+                            style={{
+                              backgroundColor: 'var(--amber)',
+                            }}
+                          >
+                            {isReviewingThis ? (
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Opening review...</span>
+                              </>
+                            ) : (
+                              <>
+                                <span>Review</span>
+                                <ArrowRight className="w-3.5 h-3.5" />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="flex items-center gap-2 text-xs font-mono" style={{ color: 'var(--ink-2)' }}>
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>{new Date(item.detectedAt).toLocaleString('en-GB')}</span>
-                  </div>
-                </div>
-
-                {/* Description */}
-                <p className="text-xs leading-relaxed mb-3" style={{ color: 'var(--ink-1)' }}>
-                  {item.description}
-                </p>
-
-                {/* Meta Row & Action */}
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t text-xs font-mono" style={{ borderColor: 'var(--border)' }}>
-                  <div className="flex flex-wrap items-center gap-3 text-[11px]" style={{ color: 'var(--ink-2)' }}>
-                    <span>Source: {item.source}</span>
-                    <span>Confidence: {Math.round(item.confidence * 100)}%</span>
-                    {item.decidedBy && <span>Decided: {item.status.toUpperCase()}</span>}
-                    {item.dismissReason && <span className="text-red-400">Reason: {item.dismissReason}</span>}
-                  </div>
-
-                  {isPending && (
-                    <div className="flex items-center gap-2">
-                      {governanceMode === 'automated' ? (
-                        <span className="text-xs text-amber-400 flex items-center gap-1.5 font-semibold">
-                          <Radio className="w-3.5 h-3.5 animate-ping" />
-                          <span>Agent proceeding...</span>
+                  {/* Standard Layout above 700px */}
+                  <div className="hidden min-[700px]:block">
+                    <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-base">{group?.rootFlag || '🏢'}</span>
+                        <h3 className="text-sm font-bold font-display" style={{ color: 'var(--ink)' }}>
+                          {group?.name || item.groupId}
+                        </h3>
+                        <span className="text-xs font-mono-code text-[var(--ink3)]">
+                          ({item.customerId})
                         </span>
-                      ) : (
-                        <button
-                          onClick={() => onReviewAlert(item.groupId, item.customerId, item)}
-                          className="py-1.5 px-4 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-md hover:scale-[1.02] active:scale-[0.98]"
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        {/* Severity as a subtle 6px dot badge on neutral pill per Item 6 */}
+                        <div
+                          className="px-2.5 py-0.5 rounded-full text-[10px] font-mono-code font-bold uppercase tracking-wider flex items-center gap-1.5 border"
                           style={{
-                            background: 'linear-gradient(135deg, var(--amber) 0%, #D97706 100%)',
-                            color: '#000000'
+                            backgroundColor: 'var(--bg2)',
+                            borderColor: 'var(--line)',
+                            color: 'var(--ink2)',
                           }}
                         >
-                          <span>Review</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
+                          <span
+                            className="w-1.5 h-1.5 rounded-full shrink-0"
+                            style={{ backgroundColor: severityDotColor }}
+                          />
+                          <span>{severityLabel}</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 text-xs font-mono-code" style={{ color: 'var(--ink3)' }}>
+                          <Clock className="w-3.5 h-3.5" />
+                          <span>{new Date(item.detectedAt).toLocaleString('en-GB')}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Description */}
+                    <p className="text-xs leading-relaxed mb-3.5" style={{ color: 'var(--ink2)' }}>
+                      {item.description}
+                    </p>
+
+                    {/* Meta Row & Action */}
+                    <div
+                      className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t text-xs font-mono-code"
+                      style={{ borderColor: 'var(--line2)' }}
+                    >
+                      <div className="flex flex-wrap items-center gap-3 text-[11px]" style={{ color: 'var(--ink3)' }}>
+                        <span>Source: {item.source}</span>
+                        <span>·</span>
+                        <span className="tabular-nums">Confidence: {Math.round(item.confidence * 100)}%</span>
+                        {item.decidedBy && (
+                          <>
+                            <span>·</span>
+                            <span>Decided: {item.status.toUpperCase()}</span>
+                          </>
+                        )}
+                        {item.dismissReason && (
+                          <>
+                            <span>·</span>
+                            <span style={{ color: 'var(--rose)' }}>Reason: {item.dismissReason}</span>
+                          </>
+                        )}
+                        {item._simulation && (
+                          <>
+                            <span>·</span>
+                            <span className="text-[10px] text-[var(--amber)]">Simulation feed</span>
+                          </>
+                        )}
+                      </div>
+
+                      {isPending && (
+                        <div className="flex items-center gap-2">
+                          {governanceMode === 'automated' ? (
+                            <span className="text-xs text-[var(--amber)] flex items-center gap-1.5 font-semibold">
+                              <Radio className="w-3.5 h-3.5 animate-pulse" />
+                              <span>Agent evaluating...</span>
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={isReviewingThis}
+                              title={isReviewingThis ? 'Opening review in flight...' : 'Review change event'}
+                              onClick={handleStartReview}
+                              className="py-1.5 px-4 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all hover:opacity-95 active:scale-95 focus-visible:ring-2 text-white disabled:opacity-50 disabled:cursor-wait"
+                              style={{
+                                backgroundColor: 'var(--amber)',
+                              }}
+                            >
+                              {isReviewingThis ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  <span>Opening...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <span>Review</span>
+                                  <ArrowRight className="w-3.5 h-3.5" />
+                                </>
+                              )}
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
 
-      {/* Data Attribution Footer */}
-      <div className="pt-4 border-t flex items-center justify-between text-[11px] font-mono text-slate-500">
-        <span>Sanctions data: OpenSanctions (CC BY-NC 4.0)</span>
-        <span>Sentinel AI Perpetual KYC Engine</span>
+        {/* Data Attribution Footer */}
+        <div
+          className="pt-4 border-t flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono-code"
+          style={{ borderColor: 'var(--line)', color: 'var(--ink3)' }}
+        >
+          <span>Sanctions data: OpenSanctions (CC BY-NC 4.0)</span>
+          <span>Sentinel AI Perpetual KYC Engine</span>
+        </div>
       </div>
     </div>
   );

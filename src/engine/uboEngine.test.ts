@@ -45,12 +45,12 @@ runTest('Scenario 1 — Hidden PEP through layering (Aurelia Maritime Logistics 
   assert.equal(Math.round(pep.totalMinPct * 10) / 10, 28.7);
   assert.equal(Math.round(pep.totalMaxPct * 10) / 10, 28.7);
   assert.equal(pep.classification, 'DEFINITE');
-  log(`Dr. Kaelen Vance-Morozov (Foreign PEP): 2 paths (18.9% + 9.8% = 28.7%) → ${pep.classification}`);
+  log(`Kaelen Vance Morozov (Foreign PEP): 2 paths (18.9% + 9.8% = 28.7%) → ${pep.classification}`);
 
-  // Eleanor Thorne-Finch: 20.0% -> BELOW
+  // Eleanor Thorne Finch: 20.0% -> BELOW
   assert.equal(Math.round(exec.totalMinPct * 10) / 10, 20.0);
   assert.equal(exec.classification, 'BELOW');
-  log(`Eleanor Thorne-Finch: 1 path (20.0%) → ${exec.classification}`);
+  log(`Eleanor Thorne Finch: 1 path (20.0%) → ${exec.classification}`);
 
   // Tariq Al-Mansoor: 45% * 40% = 18.0% -> BELOW
   assert.equal(Math.round(min.totalMinPct * 10) / 10, 18.0);
@@ -58,7 +58,7 @@ runTest('Scenario 1 — Hidden PEP through layering (Aurelia Maritime Logistics 
   log(`Tariq Al-Mansoor: 1 path (45% × 40% = 18.0%) → ${min.classification}`);
 
   // Unaccounted ownership & Completeness check (Solstice Crest 30% rem, Meridian Strait 60% rem)
-  assert.equal(res.completenessScore, 67, 'Group 1 completeness must be ~67% due to unaccounted ownership');
+  assert.equal(res.completenessScore, 66.7, 'Group 1 completeness must be 66.7% due to unaccounted ownership');
   assert.equal(res.implicitGaps.length, 2, 'Group 1 must yield 2 implicit gaps (Solstice Crest and Meridian Strait)');
   assert.equal(res.totalUnaccountedEffectOnRoot, 33.3, 'Total unaccounted effect on root must be 33.3%');
   assert.equal(res.hiddenOwnershipWarning, true, 'Hidden-ownership warning must fire (33.3% > 25%)');
@@ -96,25 +96,25 @@ runTest('Scenario 2 — The banded-percentage problem (Cairnstone Precision Hold
 
   assert.ok(defPerson && posPerson && belPerson, 'All 3 banded persons must be resolved');
 
-  // Morag Drummond-Fletcher: [52..60]% * [50..75]% = [26.0..45.0]% -> DEFINITE (> 25%)
-  assert.equal(defPerson.person.name, 'Morag Drummond-Fletcher', 'Name must be Morag Drummond-Fletcher');
+  // Morag Drummond Fletcher: [52..60]% * [50..75]% = [26.0..45.0]% -> DEFINITE (> 25%)
+  assert.equal(defPerson.person.name, 'Morag Drummond Fletcher', 'Name must be Morag Drummond Fletcher');
   assert.equal(defPerson.person.initials, 'MD', 'Initials must be MD');
   assert.equal(Math.round(defPerson.totalMinPct * 10) / 10, 26.0);
   assert.equal(Math.round(defPerson.totalMaxPct * 10) / 10, 45.0);
   assert.equal(defPerson.classification, 'DEFINITE');
-  log(`Morag Drummond-Fletcher: 52–60% × 50–75% = 26.0–45.0% → ${defPerson.classification}`);
+  log(`Morag Drummond Fletcher: 52–60% × 50–75% = 26.0–45.0% → ${defPerson.classification}`);
 
-  // Henrik Lindqvist-Holm: [25..50]% * [60..75]% = [15.0..37.5]% -> POSSIBLE
+  // Henrik Lindqvist Holm: [25..50]% * [60..75]% = [15.0..37.5]% -> POSSIBLE
   assert.equal(Math.round(posPerson.totalMinPct * 10) / 10, 15.0);
   assert.equal(Math.round(posPerson.totalMaxPct * 10) / 10, 37.5);
   assert.equal(posPerson.classification, 'POSSIBLE');
-  log(`Henrik Lindqvist-Holm: 25–50% × 60–75% = 15.0–37.5% → ${posPerson.classification}`);
+  log(`Henrik Lindqvist Holm: 25–50% × 60–75% = 15.0–37.5% → ${posPerson.classification}`);
 
-  // Clara Dumont-Moreau: [25..50]% * [25..30]% = [6.25..15.0]% -> BELOW
+  // Clara Dumont Moreau: [25..50]% * [25..30]% = [6.25..15.0]% -> BELOW
   assert.equal(Math.round(belPerson.totalMinPct * 100) / 100, 6.25);
   assert.equal(Math.round(belPerson.totalMaxPct * 10) / 10, 15.0);
   assert.equal(belPerson.classification, 'BELOW');
-  log(`Clara Dumont-Moreau: 25–50% × 25–30% = 6.3–15.0% → ${belPerson.classification}`);
+  log(`Clara Dumont Moreau: 25–50% × 25–30% = 6.3–15.0% → ${belPerson.classification}`);
 
   // Dissolved entity skipped and reported
   assert.equal(res.skippedDissolved.length, 1, 'Dissolved entity must be skipped and reported');
@@ -171,12 +171,12 @@ runTest('Scenario 4 — Circular ownership (Ouroboros Meridian Trade S.A., 25% E
   // Sébastien: 55% * 60% = 33.0% + 45% * 25% * 60% = 6.75% => 39.75% -> DEFINITE
   assert.equal(Math.round(ubo1.totalMinPct * 100) / 100, 39.75);
   assert.equal(ubo1.classification, 'DEFINITE');
-  log(`Sébastien Voss-Delacroix: 2 simple paths (33.0% + 6.8% = 39.8%) → ${ubo1.classification}`);
+  log(`Sébastien Voss Delacroix: 2 simple paths (33.0% + 6.8% = 39.8%) → ${ubo1.classification}`);
 
   // Mei-Ling: 45% * 75% = 33.75% + 55% * 30% * 75% = 12.375% => 46.125% -> DEFINITE
   assert.equal(Math.round(ubo2.totalMinPct * 1000) / 1000, 46.125);
   assert.equal(ubo2.classification, 'DEFINITE');
-  log(`Mei-Ling Tan-Kwan: 2 simple paths (33.8% + 12.4% = 46.1%) → ${ubo2.classification}`);
+  log(`Mei Ling Tan Kwan: 2 simple paths (33.8% + 12.4% = 46.1%) → ${ubo2.classification}`);
 
   // Lukas Van Der Berg: 55% * 10% = 5.5% + 45% * 25% * 10% = 1.125% => 6.625% -> BELOW
   assert.equal(Math.round(min3.totalMinPct * 1000) / 1000, 6.625);
@@ -197,8 +197,8 @@ runTest('Scenario 5 — Opacity & Data Gaps (Obsidian Wharf Properties Ltd, 25% 
   assert.equal(known.classification, 'DEFINITE');
   assert.equal(minor.totalMinPct, 10);
   assert.equal(minor.classification, 'BELOW');
-  log(`Julian Sterling-Houghton: 1 path (28.0%) → ${known.classification}`);
-  log(`Beatrice Aldridge-Vane: 1 path (10.0%) → ${minor.classification} (exact 10.0% threshold boundary test subject)`);
+  log(`Julian Sterling Houghton: 1 path (28.0%) → ${known.classification}`);
+  log(`Beatrice Aldridge Vane: 1 path (10.0%) → ${minor.classification} (exact 10.0% threshold boundary test subject)`);
 
   assert.equal(res.gapsReached.length, 2, 'Both unspecified owners must be collected');
   // Completeness: 100 - (24 + 18) = 58%
@@ -420,7 +420,7 @@ runTest('Scenario 6 — Threshold Boundary Tests: Exact Equality under strictly_
   );
   log('Under greater_or_equal (≥ 25%): Exact 25.0% → DEFINITE; [20..25]% → POSSIBLE; [25..30]% → DEFINITE');
 
-  // 5. Test Beatrice Aldridge-Vane (from Group 5) who holds exact 10.0% when evaluated at 10% threshold:
+  // 5. Test Beatrice Aldridge Vane (from Group 5) who holds exact 10.0% when evaluated at 10% threshold:
   const g5 = bodsRepository.getGroupById('grp-05-obsidian')!;
   // UK / India / EU rule at 10%: > 10%
   const resG5Strict10 = resolveBeneficialOwnership(g5, 10, 'strictly_greater');
@@ -430,7 +430,7 @@ runTest('Scenario 6 — Threshold Boundary Tests: Exact Equality under strictly_
     'BELOW',
     'Beatrice (10.0%) under strictly_greater (> 10%) must be BELOW'
   );
-  log('Beatrice Aldridge-Vane (10.0%) at threshold 10% under strictly_greater (>) → BELOW');
+  log('Beatrice Aldridge Vane (10.0%) at threshold 10% under strictly_greater (>) → BELOW');
 
   // US rule at 10%: >= 10%
   const resG5Ge10 = resolveBeneficialOwnership(g5, 10, 'greater_or_equal');
@@ -440,7 +440,7 @@ runTest('Scenario 6 — Threshold Boundary Tests: Exact Equality under strictly_
     'DEFINITE',
     'Beatrice (10.0%) under greater_or_equal (≥ 10%) must be DEFINITE'
   );
-  log('Beatrice Aldridge-Vane (10.0%) at threshold 10% under greater_or_equal (≥) → DEFINITE');
+  log('Beatrice Aldridge Vane (10.0%) at threshold 10% under greater_or_equal (≥) → DEFINITE');
 });
 
 console.log('================================================================');

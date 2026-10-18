@@ -458,6 +458,12 @@ export function resolveBeneficialOwnership(
   let totalUnaccountedEffectOnRoot = 0;
 
   for (const ent of group.entities) {
+    const isSanctioned = ent.status === 'sanctioned' || Boolean(ent.sanctionsProgramme);
+    if (isSanctioned) {
+      // Sanctioned entity is a terminal node: do not generate an "Unidentified holders" remainder above it
+      continue;
+    }
+
     const incoming = inboundBySubject.get(ent.id) ?? [];
     let sumOwnerMax = 0;
     for (const rel of incoming) {
@@ -517,7 +523,7 @@ export function resolveBeneficialOwnership(
   // Completeness subtracts both explicit gaps and unaccounted remainders' effect on root
   const completenessScore = Math.max(
     0,
-    Math.round(100 - totalGapImpact - totalUnaccountedEffectOnRoot)
+    Math.round((100 - totalGapImpact - totalUnaccountedEffectOnRoot) * 10) / 10
   );
 
   // Derive risk tier deterministically per Custom Instructions §8:

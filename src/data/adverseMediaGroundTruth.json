@@ -1,0 +1,32 @@
+{
+  "synthetic": true,
+  "description": "Ground truth mapping of synthetic adverse media articles to intended BODS person IDs. Used EXCLUSIVELY by automated test suites to assert retrieval, disambiguation, and exclusion correctness. Never imported or read by screening agents or production logic.",
+  "mappings": {
+    "art-g1-01": "per-g1-pep",
+    "art-g1-02": "per-g1-pep",
+    "art-g1-03": "per-g1-pep",
+    "art-g1-04a": "per-g1-pep",
+    "art-g1-04b": "per-g1-pep",
+    "art-g1-05": "per-g1-pep",
+    "art-g1-06": "per-g1-pep",
+    "art-g1-07": "per-g1-pep",
+    "art-g1-08": "per-g1-pep",
+    "art-g1-09": "per-g1-pep",
+    "art-g2-01": "per-g2-def",
+    "art-g2-02": "per-g2-def",
+    "art-g2-03": "per-g2-def",
+    "art-g2-04a": "per-g2-def",
+    "art-g2-04b": "per-g2-def",
+    "art-g2-05": "per-g2-def",
+    "art-g2-06": "per-g2-def",
+    "art-g2-07": "per-g2-def",
+    "art-g2-08": "per-g2-def",
+    "art-g2-09": "per-g2-def",
+    "art-disambig-01": "EXCLUDED_DISAMBIGUATION",
+    "art-g4-01": "per-g4-ubo1",
+    "art-g4-02": "per-g4-ubo1",
+    "art-g4-03": "per-g4-ubo1",
+    "art-g5-01": "per-g5-known",
+    "art-g5-02": "per-g5-known"
+  }
+}

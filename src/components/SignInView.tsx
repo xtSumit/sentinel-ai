@@ -27,7 +27,14 @@ export const SignInView: React.FC = () => {
       await signIn();
     } catch (err: any) {
       console.error('Sign-in error:', err);
-      setError(err?.message || 'Authentication failed. Please verify popup permissions and retry.');
+      let userFriendlyMsg = err?.message || 'Authentication failed. Please verify popup permissions and retry.';
+      try {
+        const parsed = JSON.parse(err.message);
+        if (parsed.error) userFriendlyMsg = `${parsed.error} (Path: ${parsed.path || 'unknown'}, Op: ${parsed.operationType})`;
+      } catch {
+        // Not JSON string
+      }
+      setError(userFriendlyMsg);
     } finally {
       setSigningIn(false);
     }
@@ -37,36 +44,36 @@ export const SignInView: React.FC = () => {
     <div
       className="min-h-screen w-full flex items-center justify-center p-4 relative overflow-hidden"
       style={{
-        backgroundColor: 'var(--bg-0)',
+        backgroundColor: 'var(--bg)',
         backgroundImage: `
-          radial-gradient(ellipse at 50% 20%, rgba(59, 130, 246, 0.12) 0%, transparent 60%),
-          radial-gradient(ellipse at 80% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%)
+          radial-gradient(ellipse at 50% 20%, rgba(1, 110, 253, 0.08) 0%, transparent 60%),
+          radial-gradient(ellipse at 80% 80%, rgba(5, 150, 105, 0.04) 0%, transparent 50%)
         `
       }}
     >
       {/* Background ambient grid lines */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-20"
+        className="absolute inset-0 pointer-events-none opacity-40"
         style={{
           backgroundImage:
-            'linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px)',
+            'linear-gradient(to right, rgba(34, 30, 51, 0.04) 1px, transparent 1px), linear-gradient(to bottom, rgba(34, 30, 51, 0.04) 1px, transparent 1px)',
           backgroundSize: '40px 40px'
         }}
       />
 
       {/* Centred Card */}
       <div
-        className="relative z-10 w-full max-w-md rounded-2xl p-8 flex flex-col items-center text-center transition-all duration-300"
+        className="relative z-10 w-full max-w-md rounded-2xl p-8 flex flex-col items-center text-center transition-all duration-300 shadow-xl"
         style={{
-          backgroundColor: 'var(--bg-1)',
-          border: '1px solid var(--border)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px rgba(59, 130, 246, 0.15)'
+          backgroundColor: 'var(--card)',
+          border: '1px solid var(--line)',
+          boxShadow: 'var(--sh3)'
         }}
       >
         {/* Sentinel Shield 96px */}
         <div className="relative mb-4 flex items-center justify-center">
           <div
-            className="absolute inset-0 rounded-full blur-xl opacity-40"
+            className="absolute inset-0 rounded-full blur-xl opacity-20"
             style={{ backgroundColor: 'var(--primary)' }}
           />
           <img
@@ -74,24 +81,24 @@ export const SignInView: React.FC = () => {
             alt="Sentinel AI Shield"
             width={96}
             height={96}
-            className="relative z-10 w-24 h-24 object-contain drop-shadow-md select-none pointer-events-none"
+            className="relative z-10 w-24 h-24 object-contain drop-shadow-sm select-none pointer-events-none"
           />
         </div>
 
         {/* Brand Name in Sora */}
         <div className="flex items-center gap-1.5 mb-3">
           <span
-            className="text-2xl font-bold tracking-tight"
-            style={{ fontFamily: "'Sora', sans-serif", color: 'var(--ink-0)' }}
+            className="text-2xl font-bold tracking-tight font-display"
+            style={{ color: 'var(--ink)' }}
           >
             Sentinel <span style={{ color: 'var(--primary)' }}>AI</span>
           </span>
           <span
-            className="text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold"
+            className="text-[10px] font-mono-code px-2 py-0.5 rounded-full font-semibold"
             style={{
-              backgroundColor: 'rgba(59, 130, 246, 0.15)',
+              backgroundColor: 'var(--primary-s)',
               color: 'var(--primary)',
-              border: '1px solid rgba(59, 130, 246, 0.3)'
+              border: '1px solid rgba(1, 110, 253, 0.25)'
             }}
           >
             v0.4 BODS
@@ -99,22 +106,14 @@ export const SignInView: React.FC = () => {
         </div>
 
         {/* Gradient Headline */}
-        <h1
-          className="text-xl md:text-2xl font-bold mb-2 tracking-tight"
-          style={{
-            fontFamily: "'Sora', sans-serif",
-            background: 'linear-gradient(135deg, #FFFFFF 0%, #93C5FD 50%, #3B82F6 100%)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
-          }}
-        >
+        <h1 className="text-xl md:text-2xl font-extrabold mb-2 tracking-tight font-display sig-gradient-headline">
           Beneficial Ownership &amp; Perpetual KYC
         </h1>
 
         {/* One-Line Description */}
         <p
           className="text-xs md:text-sm mb-6 leading-relaxed max-w-sm"
-          style={{ color: 'var(--ink-2)' }}
+          style={{ color: 'var(--ink2)' }}
         >
           Autonomous multi-layer UBO graph resolution, live registry change monitoring, and deterministic compliance materiality for bank analysts.
         </p>
@@ -123,9 +122,9 @@ export const SignInView: React.FC = () => {
           <div
             className="w-full mb-4 p-3 rounded-lg text-xs flex items-center gap-2 text-left"
             style={{
-              backgroundColor: 'rgba(239, 68, 68, 0.12)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: '#F87171'
+              backgroundColor: 'var(--rose-s)',
+              border: '1px solid rgba(225, 29, 72, 0.3)',
+              color: 'var(--rose)'
             }}
           >
             <AlertCircle className="w-4 h-4 shrink-0" />
@@ -137,18 +136,18 @@ export const SignInView: React.FC = () => {
         <button
           onClick={handleGoogleSignIn}
           disabled={signingIn}
-          className="w-full py-3 px-4 rounded-xl font-medium text-sm flex items-center justify-center gap-3 transition-all duration-200 cursor-pointer shadow-lg active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed group"
+          className="w-full py-3 px-4 rounded-xl font-medium text-sm flex items-center justify-center gap-3 transition-all duration-200 cursor-pointer shadow-sm active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed group focus-visible:ring-2"
           style={{
-            background: 'linear-gradient(135deg, var(--bg-2) 0%, rgba(30, 41, 59, 0.9) 100%)',
-            border: '1px solid var(--border)',
-            color: 'var(--ink-0)'
+            backgroundColor: 'var(--bg2)',
+            border: '1px solid var(--line)',
+            color: 'var(--ink)'
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.borderColor = 'var(--primary)';
-            e.currentTarget.style.boxShadow = '0 0 20px rgba(59, 130, 246, 0.25)';
+            e.currentTarget.style.boxShadow = '0 0 16px rgba(1, 110, 253, 0.18)';
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.borderColor = 'var(--border)';
+            e.currentTarget.style.borderColor = 'var(--line)';
             e.currentTarget.style.boxShadow = 'none';
           }}
         >
@@ -160,7 +159,7 @@ export const SignInView: React.FC = () => {
           ) : (
             <>
               {/* Google G Logo SVG */}
-              <svg className="w-4 h-4" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                 <path
                   fill="#4285F4"
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -186,15 +185,15 @@ export const SignInView: React.FC = () => {
         {/* Security & Synthetic Data Compliance Notice */}
         <div
           className="mt-6 pt-5 w-full border-t flex flex-col items-center gap-2"
-          style={{ borderColor: 'var(--border)' }}
+          style={{ borderColor: 'var(--line)' }}
         >
-          <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--ink-2)' }}>
+          <div className="flex items-center gap-1.5 text-[11px]" style={{ color: 'var(--ink2)' }}>
             <ShieldCheck className="w-3.5 h-3.5" style={{ color: 'var(--emerald)' }} />
             <span>Bank-Grade Firebase Authentication &amp; Firestore ABAC</span>
           </div>
           <p
-            className="text-[10px] leading-relaxed text-center font-mono"
-            style={{ color: 'var(--ink-3)' }}
+            className="text-[10px] leading-relaxed text-center font-mono-code"
+            style={{ color: 'var(--ink3)' }}
           >
             Notice: All natural person records and ownership group scenarios in this application are synthetic (BODS v0.4). Designated entity screening is grounded in OpenSanctions official designations (CC BY-NC 4.0).
           </p>
