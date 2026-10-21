@@ -49,9 +49,7 @@ export const CasesView: React.FC<CasesViewProps> = ({
   const [selectedCaseId, setSelectedCaseId] = useState<string | null>(initialCaseId || null);
 
   useEffect(() => {
-    if (initialCaseId) {
-      setSelectedCaseId(initialCaseId);
-    }
+    setSelectedCaseId(initialCaseId || null);
   }, [initialCaseId]);
 
   const [searchQuery, setSearchQuery] = useState('');

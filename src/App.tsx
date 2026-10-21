@@ -45,13 +45,21 @@ function MainApp() {
   const [activeRailItem, setActiveRailItem] = useState<'kyc-initiation' | 'beneficial-ownership' | 'alerts' | 'cases'>('beneficial-ownership');
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [intakeSessionKey, setIntakeSessionKey] = useState<number>(Date.now());
   const [targetCaseId, setTargetCaseId] = useState<string | null>(null);
+
+  const handleInitiateIntake = (groupId: string, customerId: string) => {
+    setIntakeSessionKey(Date.now());
+    setSelectedGroupId(groupId);
+    setSelectedCustomerId(customerId);
+  };
   const [caseToast, setCaseToast] = useState<{
     caseId: string;
     groupName: string;
     triggerType: string;
   } | null>(null);
   const [viewingDossierPerson, setViewingDossierPerson] = useState<BodsPerson | null>(null);
+  const [dossierOriginCaseId, setDossierOriginCaseId] = useState<string | null>(null);
 
   // Firestore Data State
   const [onboardedCustomerMap, setOnboardedCustomerMap] = useState<Record<string, string>>({}); // groupKey -> customerId
@@ -217,9 +225,9 @@ function MainApp() {
     const baseline = bodsRepository.getGroupById(selectedGroupId);
     if (!baseline) return null;
 
-    // Apply all ACCEPTED events in order
+    // Apply all ACCEPTED registry change events in order (excluding local document extractions for fresh intake)
     const groupAcceptedEvents = events
-      .filter((e) => e.groupId === selectedGroupId && e.status === 'accepted')
+      .filter((e) => e.groupId === selectedGroupId && e.status === 'accepted' && !e.id.startsWith('evt-doc-'))
       .sort((a, b) => new Date(a.detectedAt).getTime() - new Date(b.detectedAt).getTime());
 
     let mutated = baseline;
@@ -400,6 +408,7 @@ function MainApp() {
       activeRailItem={activeRailItem}
       onSelectRailItem={(railId) => {
         setViewingDossierPerson(null);
+        setDossierOriginCaseId(null);
         setActiveRailItem(railId as any);
         if (railId === 'cases') {
           setTargetCaseId(null);
@@ -640,7 +649,14 @@ function MainApp() {
       {viewingDossierPerson && (
         <AdverseMediaDossierView
           person={viewingDossierPerson}
-          onBack={() => setViewingDossierPerson(null)}
+          onBack={() => {
+            setViewingDossierPerson(null);
+            if (dossierOriginCaseId) {
+              setTargetCaseId(dossierOriginCaseId);
+              setActiveRailItem('cases');
+            }
+            setDossierOriginCaseId(null);
+          }}
         />
       )}
 
@@ -652,6 +668,7 @@ function MainApp() {
               setSelectedCustomerId(custId);
               setActiveRailItem('beneficial-ownership');
             }}
+            onInitiateIntake={handleInitiateIntake}
           />
         ) : activeRailItem === 'alerts' ? (
           <AlertsView
@@ -666,12 +683,17 @@ function MainApp() {
               setSelectedCustomerId(custId);
               setActiveRailItem('beneficial-ownership');
             }}
-            onOpenDossier={(person) => setViewingDossierPerson(person)}
+            onOpenDossier={(person) => {
+              setDossierOriginCaseId(targetCaseId);
+              setViewingDossierPerson(person);
+            }}
           />
         ) : currentGroup ? (
           <EntityWorkspaceView
+            key={`${selectedGroupId}-${intakeSessionKey}`}
             group={currentGroup}
             customerId={selectedCustomerId || undefined}
+            intakeSessionKey={intakeSessionKey}
             onBack={() => {
               setSelectedGroupId(null);
               setSelectedCustomerId(null);

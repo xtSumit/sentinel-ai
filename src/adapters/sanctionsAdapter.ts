@@ -38,8 +38,9 @@ import {
 export class ProductionSanctionsAdapter implements ISanctionsAdapter {
   private tableName: string;
   private projectId: string;
+  private clientOverride?: any;
 
-  constructor() {
+  constructor(clientOverride?: any) {
     const table = process.env.BQ_SANCTIONS_TABLE;
     const project = process.env.GOOGLE_CLOUD_PROJECT;
     if (!table) {
@@ -50,6 +51,7 @@ export class ProductionSanctionsAdapter implements ISanctionsAdapter {
     }
     this.tableName = table;
     this.projectId = project;
+    this.clientOverride = clientOverride;
   }
 
   async lookup(query: SanctionsLookupQuery): Promise<SanctionsEntry | null> {
@@ -62,14 +64,39 @@ export class ProductionSanctionsAdapter implements ISanctionsAdapter {
     if (!normQuery) return null;
 
     try {
-      const { GoogleAuth } = await import(/* @vite-ignore */ 'google-auth-library');
-      const auth = new GoogleAuth({
-        scopes: ['https://www.googleapis.com/auth/bigquery', 'https://www.googleapis.com/auth/cloud-platform']
-      });
-      const client = await auth.getClient();
+      let client = this.clientOverride;
+      if (!client) {
+        const { GoogleAuth } = await import(/* @vite-ignore */ 'google-auth-library');
+        const auth = new GoogleAuth({
+          scopes: ['https://www.googleapis.com/auth/bigquery', 'https://www.googleapis.com/auth/cloud-platform']
+        });
+        client = await auth.getClient();
+      }
 
-      // Parameterised BigQuery query (OWASP Top 10 strict query parameterisation)
-      const sql = `SELECT id, name, country, programme, aliases, openSanctionsUrl FROM \`${this.tableName}\` WHERE LOWER(name) = @cleanName OR @cleanName IN UNNEST(aliases) LIMIT 1`;
+      // Parameterised BigQuery query using genuine ARRAY parameter for IN UNNEST
+      const sql = `SELECT id, name, country, programme, aliases, openSanctionsUrl FROM \`${this.tableName}\` WHERE LOWER(name) IN UNNEST(@queryNames) OR EXISTS(SELECT 1 FROM UNNEST(@queryNames) q WHERE q IN UNNEST(aliases)) LIMIT 1`;
+
+      const queryNamesSet = new Set<string>();
+      queryNamesSet.add(normQuery);
+      if (query.name && query.name.toLowerCase().trim() !== normQuery) {
+        queryNamesSet.add(query.name.toLowerCase().trim());
+      }
+      if (Array.isArray(query.aliases)) {
+        for (const al of query.aliases) {
+          if (!al || typeof al !== 'string') continue;
+          const normAl = normaliseEntityName(al);
+          if (normAl && !WEAK_ALIASES_DISALLOWED.has(normAl)) {
+            queryNamesSet.add(normAl);
+          }
+        }
+      } else if (typeof query.aliases === 'string') {
+        const normAl = normaliseEntityName(query.aliases);
+        if (normAl && !WEAK_ALIASES_DISALLOWED.has(normAl)) {
+          queryNamesSet.add(normAl);
+        }
+      }
+
+      const queryNames = Array.from(queryNamesSet);
 
       const requestBody = {
         query: sql,
@@ -77,9 +104,14 @@ export class ProductionSanctionsAdapter implements ISanctionsAdapter {
         parameterMode: 'NAMED',
         queryParameters: [
           {
-            name: 'cleanName',
-            parameterType: { type: 'STRING' },
-            parameterValue: { value: normQuery }
+            name: 'queryNames',
+            parameterType: {
+              type: 'ARRAY',
+              arrayType: { type: 'STRING' }
+            },
+            parameterValue: {
+              arrayValues: queryNames.map((n) => ({ value: n }))
+            }
           }
         ]
       };

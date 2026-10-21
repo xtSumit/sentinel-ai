@@ -54,6 +54,7 @@ import { AlertEventRecord } from './AlertsView';
 interface EntityWorkspaceViewProps {
   group: CorporateGroupSeed;
   customerId?: string;
+  intakeSessionKey?: number;
   onBack: () => void;
   pendingEvent?: any;
   events?: AlertEventRecord[];
@@ -106,6 +107,7 @@ type ThresholdMode = 'jurisdiction' | '10' | '25';
 export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
   group,
   customerId,
+  intakeSessionKey,
   onBack,
   pendingEvent,
   events = [],
@@ -119,7 +121,9 @@ export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
 }) => {
   const { user, profile, isSupervisor } = useAuth();
   const [activeGroup, setActiveGroup] = useState<CorporateGroupSeed>(group);
+  const [resolvedGapIds, setResolvedGapIds] = useState<Set<string>>(new Set());
   const [initiallyRequestDocs, setInitiallyRequestDocs] = useState<boolean>(false);
+  const [requestDocsCounter, setRequestDocsCounter] = useState<number>(0);
   const [rippleTrigger, setRippleTrigger] = useState<{ nodeId: string; color: string } | null>(null);
   const [injecting, setInjecting] = useState(false);
   const [screeningRuns, setScreeningRuns] = useState<ScreeningRunRecord[]>([]);
@@ -130,12 +134,56 @@ export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
   const [auditCount, setAuditCount] = useState<number>(0);
 
   useEffect(() => {
+    // When intake is re-initiated, immediately replace the prepared ownership graph with fresh baseline
+    setActiveGroup(group);
+    setResolvedGapIds(new Set());
+  }, [intakeSessionKey]);
+
+  useEffect(() => {
     setReviewStarted(false);
   }, [pendingEvent?.id]);
 
   useEffect(() => {
-    setActiveGroup(group);
-  }, [group]);
+    setActiveGroup((prev) => {
+      if (prev.id !== group.id) {
+        setResolvedGapIds(new Set());
+        return group;
+      }
+      // Preserve any local document extractions if incoming group hasn't integrated them yet
+      const docPersons = prev.persons.filter((p) => p.id.startsWith('per-doc-'));
+      const docEntities = prev.entities.filter((e) => e.id.startsWith('ent-doc-'));
+      const docRels = prev.relationships.filter((r) => r.id.startsWith('rel-doc-'));
+      if (docPersons.length === 0 && docEntities.length === 0 && docRels.length === 0 && resolvedGapIds.size === 0) {
+        return group;
+      }
+      const mergedPersons = [...group.persons];
+      for (const p of docPersons) {
+        if (!mergedPersons.some((mp) => mp.id === p.id)) mergedPersons.push(p);
+      }
+      const mergedEntities = [...group.entities];
+      for (const e of docEntities) {
+        if (!mergedEntities.some((me) => me.id === e.id)) mergedEntities.push(e);
+      }
+      // Filter out relationships that pointed to resolved gaps
+      const mergedRels = group.relationships.filter(
+        (r) => !resolvedGapIds.has(r.interestedPartyId) && !docRels.some((dr) => dr.id.includes(r.interestedPartyId))
+      );
+      for (const r of docRels) {
+        if (!mergedRels.some((mr) => mr.id === r.id)) mergedRels.push(r);
+      }
+      // Filter out unspecified owners that were resolved
+      const mergedUnspecified = group.unspecifiedOwners.filter(
+        (u) => !resolvedGapIds.has(u.id) && !docRels.some((r) => r.id.includes(u.id))
+      );
+      return {
+        ...group,
+        entities: mergedEntities,
+        persons: mergedPersons,
+        relationships: mergedRels,
+        unspecifiedOwners: mergedUnspecified
+      };
+    });
+  }, [group, resolvedGapIds]);
 
   // 1. Live detection after opening a tree
   // When a supervisor opens the Entity Workspace of an onboarded customer that has no pending change and still has an unfired prepared change,
@@ -450,25 +498,38 @@ export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
     fileName: string;
     confirmedRows: ExtractedShareholderRow[];
   }) => {
-    // 1. Locate subject entity
+    // 1. Locate subject entity (supports explicit gaps, implicit unaccounted gaps, and direct entities)
+    let parentEntityId: string;
     const relToGap = activeGroup.relationships.find((r) => r.interestedPartyId === gapId);
-    const parentEntityId = relToGap ? relToGap.subjectId : (activeGroup.entities[1]?.id || activeGroup.rootEntityId);
+    if (relToGap) {
+      parentEntityId = relToGap.subjectId;
+    } else if (gapId.startsWith('unidentified-')) {
+      const targetEntId = gapId.replace('unidentified-', '');
+      parentEntityId = activeGroup.entities.some((e) => e.id === targetEntId)
+        ? targetEntId
+        : activeGroup.rootEntityId;
+    } else if (activeGroup.entities.some((e) => e.id === gapId)) {
+      parentEntityId = gapId;
+    } else {
+      parentEntityId = activeGroup.rootEntityId;
+    }
 
-    // 2. Build new revealed persons and relationships
+    // 2. Build new revealed persons, entities, and relationships
     const newPersons: BodsPerson[] = [];
+    const newEntities: any[] = [];
     const newRelationships: any[] = [];
 
     confirmedRows.forEach((row, idx) => {
-      const personId = `per-doc-${gapId.replace(/[^a-zA-Z0-9]/g, '-')}-${idx + 1}`;
       const initials = row.holderName
         .split(' ')
         .map((n) => n[0])
         .filter(Boolean)
         .slice(0, 2)
         .join('')
-        .toUpperCase() || 'BO';
+        .toUpperCase() || (row.holderType === 'entity' ? 'CO' : 'BO');
 
       if (row.holderType === 'person') {
+        const personId = `per-doc-${gapId.replace(/[^a-zA-Z0-9]/g, '-')}-${idx + 1}`;
         newPersons.push({
           id: personId,
           name: row.holderName,
@@ -494,7 +555,42 @@ export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
               directOrIndirect: 'direct',
               source: `Client Document (${fileName})`,
               asOfDate: row.asOfDate || new Date().toISOString().slice(0, 10),
-              confidence: row.confidence
+              confidence: row.confidence,
+              shareClass: row.shareClass
+            }
+          ]
+        });
+      } else {
+        const entityId = `ent-doc-${gapId.replace(/[^a-zA-Z0-9]/g, '-')}-${idx + 1}`;
+        newEntities.push({
+          id: entityId,
+          name: row.holderName,
+          displayLines: [row.holderName],
+          entityType: 'company',
+          jurisdictionCode: 'UK',
+          countryFlag: '🇬🇧',
+          registrationId: `DOC-${Date.now().toString().slice(-6)}`,
+          status: 'active',
+          registeredAddress: 'Registered Office per Filing Extract',
+          source: `Client Document (${fileName})`,
+          asOfDate: row.asOfDate || new Date().toISOString().slice(0, 10)
+        });
+
+        newRelationships.push({
+          id: `rel-doc-${gapId}-${idx + 1}`,
+          subjectId: parentEntityId,
+          interestedPartyId: entityId,
+          interestedPartyType: 'entity',
+          isHot: true,
+          interests: [
+            {
+              type: 'shareholding',
+              share: { kind: 'exact', value: row.shareExact ?? row.shareValue ?? 50 },
+              directOrIndirect: 'direct',
+              source: `Client Document (${fileName})`,
+              asOfDate: row.asOfDate || new Date().toISOString().slice(0, 10),
+              confidence: row.confidence,
+              shareClass: row.shareClass
             }
           ]
         });
@@ -507,15 +603,18 @@ export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
       .filter((r) => r.interestedPartyId !== gapId)
       .concat(newRelationships);
     const updatedPersons = [...activeGroup.persons, ...newPersons];
+    const updatedEntities = [...activeGroup.entities, ...newEntities];
 
     const updatedGroup: CorporateGroupSeed = {
       ...activeGroup,
+      entities: updatedEntities,
       unspecifiedOwners: updatedUnspecifiedOwners,
       persons: updatedPersons,
       relationships: updatedRelationships
     };
 
     setActiveGroup(updatedGroup);
+    setResolvedGapIds((prev) => new Set(prev).add(gapId));
 
     // 4. Trigger ripple animation
     setRippleTrigger({
@@ -524,17 +623,25 @@ export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
     });
     setTimeout(() => setRippleTrigger(null), 1500);
 
-    // 5. Create accepted event in Firestore (create as pending, then update to accepted to satisfy rules)
+    // 5. Create accepted event in Firestore with payload (so App.tsx group computation retains it)
     try {
       if (user) {
         const eventId = `evt-doc-${Date.now()}`;
         const eventDocRef = doc(db, 'events', eventId);
+        const eventPayload = {
+          changeType: 'NEW_RELATIONSHIP' as const,
+          resolvedGapId: gapId,
+          newPersons,
+          newEntities,
+          newRelationships
+        };
         await setDoc(eventDocRef, {
           id: eventId,
           customerId: customerId || `CUS-2026-${activeGroup.id.slice(-4)}`,
           groupId: activeGroup.id,
           templateId: `tpl-doc-${gapId}`,
           changeType: 'NEW_RELATIONSHIP',
+          payload: eventPayload,
           description: `Verified document (${fileName}) resolved data gap ${gapId}, disclosing ${confirmedRows.length} shareholder(s).`,
           source: 'client document',
           confidence: 0.98,
@@ -946,6 +1053,7 @@ export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
               onOpenDossier={onOpenDossier}
               screenedPersonIds={screenedPersonIds}
               initiallyRequestDocuments={initiallyRequestDocs}
+              requestDocsTimestamp={requestDocsCounter}
               onConfirmExtraction={handleConfirmExtraction}
             />
           </div>
@@ -1248,6 +1356,7 @@ export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
                             onClick={async () => {
                               setSelectedGraphNode({ kind: 'unspecified', record: item.gap });
                               setInitiallyRequestDocs(true);
+                              setRequestDocsCounter((c) => c + 1);
                               if (user) {
                                 writeAuditRecord({
                                   actorUid: user.uid,
@@ -1322,6 +1431,7 @@ export const EntityWorkspaceView: React.FC<EntityWorkspaceViewProps> = ({
                             onClick={async () => {
                               setSelectedGraphNode({ kind: 'implicitGap', record: item });
                               setInitiallyRequestDocs(true);
+                              setRequestDocsCounter((c) => c + 1);
                               if (user) {
                                 writeAuditRecord({
                                   actorUid: user.uid,

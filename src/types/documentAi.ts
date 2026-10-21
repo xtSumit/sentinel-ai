@@ -186,7 +186,7 @@ export interface DocumentExtractionInput {
 
 export interface DocumentExtractionResult {
   extractionId: string;
-  extractor: 'Preview extraction (Gemini)' | 'Production Document AI (Form Parser)';
+  extractor: 'Preview extraction (Gemini)' | 'Production Document AI (Form Parser)' | 'Preview extraction (Deterministic Simulation)';
   status: 'extracted' | 'failed';
   rows: ExtractedShareholderRow[];
   rawTextSummary?: string;

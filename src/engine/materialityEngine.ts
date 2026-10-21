@@ -63,6 +63,10 @@ export interface RegistryEventData {
   newEntity?: EntityRecord;
   relationship?: RelationshipRecord;
   dissolvedEntityId?: string;
+  newPersons?: PersonRecord[];
+  newEntities?: EntityRecord[];
+  newRelationships?: RelationshipRecord[];
+  resolvedGapId?: string;
 }
 
 export interface EventAssessmentInput {
@@ -76,6 +80,8 @@ export interface EventAssessmentInput {
  * Pure function: applies a single event to a group and returns a new mutated group.
  */
 export function applyEventToGroup(baseline: CorporateGroupSeed, event: RegistryEventData): CorporateGroupSeed {
+  if (!event) return baseline;
+
   const mutated: CorporateGroupSeed = {
     ...baseline,
     entities: [...baseline.entities],
@@ -103,8 +109,33 @@ export function applyEventToGroup(baseline: CorporateGroupSeed, event: RegistryE
     if (event.newEntity && !mutated.entities.some((e) => e.id === event.newEntity!.id)) {
       mutated.entities.push(event.newEntity);
     }
+    if (event.newEntities && Array.isArray(event.newEntities)) {
+      for (const ent of event.newEntities) {
+        if (!mutated.entities.some((e) => e.id === ent.id)) {
+          mutated.entities.push(ent);
+        }
+      }
+    }
     if (event.relationship && !mutated.relationships.some((r) => r.id === event.relationship!.id)) {
       mutated.relationships.push({ ...event.relationship, isHot: true });
+    }
+    if (event.newPersons && Array.isArray(event.newPersons)) {
+      for (const p of event.newPersons) {
+        if (!mutated.persons.some((ep) => ep.id === p.id)) {
+          mutated.persons.push(p);
+        }
+      }
+    }
+    if (event.newRelationships && Array.isArray(event.newRelationships)) {
+      for (const r of event.newRelationships) {
+        if (!mutated.relationships.some((er) => er.id === r.id)) {
+          mutated.relationships.push({ ...r, isHot: true });
+        }
+      }
+    }
+    if (event.resolvedGapId) {
+      mutated.unspecifiedOwners = mutated.unspecifiedOwners.filter((u) => u.id !== event.resolvedGapId);
+      mutated.relationships = mutated.relationships.filter((r) => r.interestedPartyId !== event.resolvedGapId);
     }
   } else if (event.changeType === 'RELATIONSHIP_ENDED' && event.relationshipId) {
     mutated.relationships = mutated.relationships.filter((r) => r.id !== event.relationshipId);

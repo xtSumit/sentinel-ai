@@ -43,6 +43,7 @@ import { normaliseEntityName } from '../engine/sanctionsNormalizer';
 
 interface KycInitiationViewProps {
   onOpenCustomerWorkspace: (groupId: string, customerId: string) => void;
+  onInitiateIntake?: (groupId: string, customerId: string) => void;
 }
 
 interface MappingStep {
@@ -53,7 +54,8 @@ interface MappingStep {
 }
 
 export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
-  onOpenCustomerWorkspace
+  onOpenCustomerWorkspace,
+  onInitiateIntake
 }) => {
   const { user, profile } = useAuth();
   const groups = bodsRepository.getGroups();
@@ -203,6 +205,9 @@ export const KycInitiationView: React.FC<KycInitiationViewProps> = ({
       setResolvedCustomerId(custId);
       setIsNewCustomer(createdNew);
       setIsSubmitting(false);
+
+      // Replace and prepare fresh ownership graph for this initiated customer
+      onInitiateIntake?.(match.id, custId);
 
       // Start Autonomous Mapping Agent Run
       runAutonomousMapping(match, custId, createdNew);

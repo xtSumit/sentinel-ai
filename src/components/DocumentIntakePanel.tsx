@@ -408,20 +408,20 @@ export const DocumentIntakePanel: React.FC<DocumentIntakePanelProps> = ({
           </div>
 
           <p className="text-[11px] text-[var(--ink3)]">
-            Review and edit extracted values below. Nothing enters the live graph until confirmed.
+            Review and edit extracted values below (scroll horizontally to view all fields). Nothing enters the live graph until confirmed.
           </p>
 
-          <div className="overflow-x-auto rounded-xl border" style={{ borderColor: 'var(--line)' }}>
-            <table className="w-full text-left text-xs border-collapse">
+          <div className="overflow-x-auto rounded-xl border scrollbar-thin" style={{ borderColor: 'var(--line)' }}>
+            <table className="w-full min-w-[680px] text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b text-[10px] uppercase font-mono-code text-[var(--ink3)]" style={{ backgroundColor: 'var(--bg2)', borderColor: 'var(--line)' }}>
-                  <th className="py-2 px-2.5">Holder Name</th>
-                  <th className="py-2 px-2">Type</th>
-                  <th className="py-2 px-2">Share %</th>
-                  <th className="py-2 px-2">Share Class</th>
-                  <th className="py-2 px-2">As-of Date</th>
-                  <th className="py-2 px-2">Conf</th>
-                  <th className="py-2 px-1 text-center"></th>
+                  <th className="py-2 px-2.5 min-w-[150px] whitespace-nowrap">Holder Name</th>
+                  <th className="py-2 px-2 min-w-[80px] whitespace-nowrap">Type</th>
+                  <th className="py-2 px-2 min-w-[75px] whitespace-nowrap">Share %</th>
+                  <th className="py-2 px-2 min-w-[210px] whitespace-nowrap font-bold text-[var(--ink)]">Share Class</th>
+                  <th className="py-2 px-2 min-w-[100px] whitespace-nowrap">As-of Date</th>
+                  <th className="py-2 px-2 min-w-[55px] whitespace-nowrap">Conf</th>
+                  <th className="py-2 px-1 text-center w-8 min-w-[32px]"></th>
                 </tr>
               </thead>
               <tbody className="divide-y" style={{ borderColor: 'var(--line2)' }}>
@@ -431,21 +431,21 @@ export const DocumentIntakePanel: React.FC<DocumentIntakePanelProps> = ({
 
                   return (
                     <tr key={row.id} className="hover:bg-[var(--bg2)] transition-colors">
-                      <td className="py-2 px-2.5">
+                      <td className="py-2 px-2.5 min-w-[150px]">
                         <input
                           type="text"
                           value={row.holderName}
                           onChange={(e) => handleRowChange(idx, 'holderName', e.target.value)}
-                          className="w-full p-1 text-xs rounded border outline-none font-medium text-[var(--ink)] bg-[var(--card)] focus-visible:ring-1"
+                          className="w-full min-w-[140px] p-1.5 text-xs rounded border outline-none font-medium text-[var(--ink)] bg-[var(--card)] focus-visible:ring-1"
                           style={{ borderColor: 'var(--line)' }}
                         />
                       </td>
 
-                      <td className="py-2 px-2">
+                      <td className="py-2 px-2 min-w-[80px]">
                         <select
                           value={row.holderType}
                           onChange={(e) => handleRowChange(idx, 'holderType', e.target.value)}
-                          className="p-1 text-xs rounded border outline-none font-mono-code bg-[var(--card)] text-[var(--ink)]"
+                          className="w-full p-1.5 text-xs rounded border outline-none font-mono-code bg-[var(--card)] text-[var(--ink)]"
                           style={{ borderColor: 'var(--line)' }}
                         >
                           <option value="person">Person</option>
@@ -453,7 +453,7 @@ export const DocumentIntakePanel: React.FC<DocumentIntakePanelProps> = ({
                         </select>
                       </td>
 
-                      <td className="py-2 px-2">
+                      <td className="py-2 px-2 min-w-[75px]">
                         <input
                           type="number"
                           step="0.1"
@@ -461,27 +461,29 @@ export const DocumentIntakePanel: React.FC<DocumentIntakePanelProps> = ({
                           max="100"
                           value={row.shareValue ?? row.shareMin ?? 0}
                           onChange={(e) => handleRowChange(idx, 'shareValue', parseFloat(e.target.value) || 0)}
-                          className="w-16 p-1 text-xs rounded border outline-none font-mono-code text-[var(--ink)] bg-[var(--card)] focus-visible:ring-1"
+                          className="w-full min-w-[65px] p-1.5 text-xs rounded border outline-none font-mono-code font-semibold text-[var(--ink)] bg-[var(--card)] focus-visible:ring-1"
                           style={{ borderColor: 'var(--line)' }}
                         />
                       </td>
 
-                      <td className="py-2 px-2">
+                      <td className="py-2 px-2 min-w-[210px]">
                         <input
                           type="text"
                           value={row.shareClass}
                           onChange={(e) => handleRowChange(idx, 'shareClass', e.target.value)}
-                          className="w-full p-1 text-xs rounded border outline-none text-[var(--ink2)] bg-[var(--card)]"
+                          className="w-full min-w-[200px] p-1.5 text-xs rounded border outline-none font-medium text-[var(--ink)] bg-[var(--card)] focus-visible:ring-1"
                           style={{ borderColor: 'var(--line)' }}
+                          title={row.shareClass}
+                          placeholder="e.g. Class A Ordinary Voting Shares"
                         />
                       </td>
 
-                      <td className="py-2 px-2">
+                      <td className="py-2 px-2 min-w-[100px]">
                         <input
                           type="text"
                           value={row.asOfDate || ''}
                           onChange={(e) => handleRowChange(idx, 'asOfDate', e.target.value)}
-                          className="w-24 p-1 text-xs rounded border outline-none font-mono-code text-[var(--ink2)] bg-[var(--card)]"
+                          className="w-full min-w-[90px] p-1.5 text-xs rounded border outline-none font-mono-code text-[var(--ink)] bg-[var(--card)] focus-visible:ring-1"
                           style={{ borderColor: 'var(--line)' }}
                         />
                       </td>

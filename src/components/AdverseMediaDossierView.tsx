@@ -14,7 +14,7 @@
  * + Right-side grounded Q&A panel with citation chips
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   BodsPerson,
   CorporateGroupSeed
@@ -931,99 +931,14 @@ export const AdverseMediaDossierView: React.FC<AdverseMediaDossierViewProps> = (
                 </p>
               </div>
 
-              {/* Suggested Questions */}
-              <div className="space-y-1.5 mb-3 shrink-0">
-                <span className="text-[10px] uppercase font-mono-code text-[var(--ink3)]">Suggested Inquiries</span>
-                <div className="flex flex-col gap-1.5">
-                  {SUGGESTED_QUESTIONS.map((sq, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      disabled={asking}
-                      onClick={() => handleAskQuestion(sq)}
-                      className="text-left text-[11px] p-2 rounded-lg border hover:bg-[var(--bg2)] text-[var(--ink)] transition-colors cursor-pointer disabled:opacity-50"
-                      style={{ borderColor: 'var(--line)' }}
-                    >
-                      {sq}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Chat Message Stream */}
-              <div className="flex-1 overflow-y-auto space-y-3 pr-1 text-xs mb-3">
-                {qaMessages.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-4 text-[var(--ink3)] space-y-2">
-                    <FileQuestion className="w-6 h-6 opacity-60" />
-                    <p className="text-[11px]">Select a suggested query above or type a specific compliance question below.</p>
-                  </div>
-                ) : (
-                  qaMessages.map((m) => (
-                    <div
-                      key={m.id}
-                      className={`p-3 rounded-xl border space-y-1.5 ${
-                        m.sender === 'user' ? 'ml-6' : 'mr-2'
-                      }`}
-                      style={{
-                        backgroundColor: m.sender === 'user' ? 'var(--primary-s)' : 'var(--bg2)',
-                        borderColor: m.sender === 'user' ? 'rgba(1, 110, 253, 0.3)' : 'var(--line)',
-                        color: 'var(--ink)'
-                      }}
-                    >
-                      <div className="flex items-center justify-between text-[10px] font-mono-code text-[var(--ink3)]">
-                        <span>{m.sender === 'user' ? 'Analyst Inquiry' : 'Grounded Model Response'}</span>
-                        {m.isAiGenerated && <span className="text-[var(--primary)] font-semibold">AI Grounded</span>}
-                      </div>
-
-                      <p className="leading-relaxed whitespace-pre-line text-xs">{m.text}</p>
-
-                      {/* Citation chips */}
-                      {m.citations && m.citations.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-[var(--line)]">
-                          <span className="text-[10px] font-mono-code text-[var(--ink3)]">Sources:</span>
-                          {m.citations.map((cid) => (
-                            <button
-                              key={cid}
-                              type="button"
-                              onClick={() => {
-                                const art = matchedFindings.find((f) => f.articleId === cid);
-                                const corpusItem = (adverseMediaCorpus as any[]).find((a) => a.id === cid);
-                                setReaderArticleId(cid);
-                                setReaderQuote(art?.quote || corpusItem?.headline);
-                              }}
-                              className="px-1.5 py-0.5 rounded text-[10px] font-mono-code font-bold bg-[var(--card)] border hover:bg-[var(--primary-s)] text-[var(--primary)] transition-colors cursor-pointer"
-                              style={{ borderColor: 'var(--line)' }}
-                              title="Click to view article passage in source reader"
-                            >
-                              [{cid}]
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ))
-                )}
-                {asking && (
-                  <div className="p-3 rounded-xl border flex items-center gap-2 text-xs text-[var(--ink2)] bg-[var(--bg2)]" style={{ borderColor: 'var(--line)' }}>
-                    <Loader2 className="w-4 h-4 animate-spin text-[var(--primary)]" />
-                    <span>Cross-referencing verified corpus...</span>
-                  </div>
-                )}
-              </div>
-
-              {qaError && (
-                <div className="p-2 mb-2 rounded border text-[11px] text-[var(--rose)] bg-[var(--rose-s)] border-[var(--rose)] shrink-0">
-                  {qaError}
-                </div>
-              )}
-
-              {/* Question Input Form */}
+              {/* Question Input Form (Fixed near top) */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
                   handleAskQuestion(questionInput);
                 }}
-                className="shrink-0 space-y-1.5"
+                className="shrink-0 space-y-1.5 pb-3 mb-3 border-b"
+                style={{ borderColor: 'var(--line)' }}
               >
                 <div className="relative">
                   <textarea
@@ -1054,6 +969,95 @@ export const AdverseMediaDossierView: React.FC<AdverseMediaDossierViewProps> = (
                   <span>{questionInput.length} / 500</span>
                 </div>
               </form>
+
+              {/* Scrollable area containing suggested questions and chat stream */}
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 text-xs min-h-0">
+                {/* Suggested Questions */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] uppercase font-mono-code text-[var(--ink3)]">Suggested Inquiries</span>
+                  <div className="flex flex-col gap-1.5">
+                    {SUGGESTED_QUESTIONS.map((sq, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        disabled={asking}
+                        onClick={() => handleAskQuestion(sq)}
+                        className="text-left text-[11px] p-2 rounded-lg border hover:bg-[var(--bg2)] text-[var(--ink)] transition-colors cursor-pointer disabled:opacity-50"
+                        style={{ borderColor: 'var(--line)' }}
+                      >
+                        {sq}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {qaError && (
+                  <div className="p-2 rounded border text-[11px] text-[var(--rose)] bg-[var(--rose-s)] border-[var(--rose)] shrink-0">
+                    {qaError}
+                  </div>
+                )}
+
+                {/* Chat Message Stream */}
+                <div className="space-y-3">
+                  {qaMessages.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-4 text-[var(--ink3)] space-y-2">
+                      <FileQuestion className="w-6 h-6 opacity-60" />
+                      <p className="text-[11px]">Select a suggested query above or type a specific compliance question above.</p>
+                    </div>
+                  ) : (
+                    qaMessages.map((m) => (
+                      <div
+                        key={m.id}
+                        className={`p-3 rounded-xl border space-y-1.5 ${
+                          m.sender === 'user' ? 'ml-6' : 'mr-2'
+                        }`}
+                        style={{
+                          backgroundColor: m.sender === 'user' ? 'var(--primary-s)' : 'var(--bg2)',
+                          borderColor: m.sender === 'user' ? 'rgba(1, 110, 253, 0.3)' : 'var(--line)',
+                          color: 'var(--ink)'
+                        }}
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-mono-code text-[var(--ink3)]">
+                          <span>{m.sender === 'user' ? 'Analyst Inquiry' : 'Grounded Model Response'}</span>
+                          {m.isAiGenerated && <span className="text-[var(--primary)] font-semibold">AI Grounded</span>}
+                        </div>
+
+                        <p className="leading-relaxed whitespace-pre-line text-xs">{m.text}</p>
+
+                        {/* Citation chips */}
+                        {m.citations && m.citations.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-[var(--line)]">
+                            <span className="text-[10px] font-mono-code text-[var(--ink3)]">Sources:</span>
+                            {m.citations.map((cid) => (
+                              <button
+                                key={cid}
+                                type="button"
+                                onClick={() => {
+                                  const art = matchedFindings.find((f) => f.articleId === cid);
+                                  const corpusItem = (adverseMediaCorpus as any[]).find((a) => a.id === cid);
+                                  setReaderArticleId(cid);
+                                  setReaderQuote(art?.quote || corpusItem?.headline);
+                                }}
+                                className="px-1.5 py-0.5 rounded text-[10px] font-mono-code font-bold bg-[var(--card)] border hover:bg-[var(--primary-s)] text-[var(--primary)] transition-colors cursor-pointer"
+                                style={{ borderColor: 'var(--line)' }}
+                                title="Click to view article passage in source reader"
+                              >
+                                [{cid}]
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                  {asking && (
+                    <div className="p-3 rounded-xl border flex items-center gap-2 text-xs text-[var(--ink2)] bg-[var(--bg2)]" style={{ borderColor: 'var(--line)' }}>
+                      <Loader2 className="w-4 h-4 animate-spin text-[var(--primary)]" />
+                      <span>Cross-referencing verified corpus...</span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

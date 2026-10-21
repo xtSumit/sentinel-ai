@@ -40,7 +40,7 @@ export interface DocumentExtractionInput {
 
 export interface DocumentExtractionResult {
   extractionId: string;
-  extractor: 'Preview extraction (Gemini)' | 'Production Document AI (Form Parser)';
+  extractor: 'Preview extraction (Gemini)' | 'Production Document AI (Form Parser)' | 'Preview extraction (Deterministic Simulation)';
   status: 'extracted' | 'failed';
   rows: ExtractedShareholderRow[];
   rawTextSummary?: string;
@@ -202,7 +202,8 @@ Extract all disclosed beneficial owners or interest holders from this document.`
         const ladderResult = await callGeminiWithLadder({
           taskName: 'Document Extraction',
           contents: [{ role: 'user', parts }],
-          config: { responseMimeType: 'application/json' }
+          config: { responseMimeType: 'application/json' },
+          timeoutMs: 25000
         });
 
         const txt = ladderResult.text.trim();
@@ -251,7 +252,7 @@ Extract all disclosed beneficial owners or interest holders from this document.`
       lastErrorMessage = 'GEMINI_API_KEY is not configured in the server environment.';
     }
 
-    // Fail closed: Never present fixed-row fallback as a real Gemini extraction!
+    // Fail closed: Never present fixed-row fallback as a real Gemini extraction! (Tested by TestCase 6b)
     throw new Error(
       `Gemini document extraction failed: Unable to parse document contents. ${lastErrorMessage ? `Details: ${lastErrorMessage}` : 'Please try uploading the document again.'}`
     );
@@ -368,6 +369,290 @@ export function generateFallbackExtraction(input: DocumentExtractionInput): Extr
 }
 
 /**
+ * Unrelated labels that should NEVER be treated as shareholder names or holder entities.
+ */
+export const UNRELATED_METADATA_LABELS = [
+  'registration number',
+  'registration',
+  'bvi company no',
+  'company no',
+  'company number',
+  'in response to',
+  'purpose',
+  'filing reference',
+  'status',
+  'registered agent',
+  'trust registration',
+  'trustee',
+  'settlor',
+  'date',
+  'reference',
+  'schedule',
+  'extract',
+  'attestation',
+  'jurisdiction'
+];
+
+export function isUnrelatedMetadata(text: string): boolean {
+  if (!text) return true;
+  const clean = text.trim().toLowerCase().replace(/[:\-_#]/g, ' ').replace(/\s+/g, ' ');
+  return UNRELATED_METADATA_LABELS.some((label) => clean === label || clean.startsWith(label) || clean.endsWith(label));
+}
+
+export function getTextFromAnchor(textAnchor: any, fullText: string): string {
+  if (!textAnchor) return '';
+  if (typeof textAnchor.content === 'string') return textAnchor.content.trim();
+  const segments = textAnchor.textSegments || [];
+  if (!segments.length) return '';
+  return segments
+    .map((s: any) => {
+      const start = parseInt(s.startIndex || '0', 10);
+      const end = parseInt(s.endIndex || '0', 10);
+      return (fullText || '').substring(start, end);
+    })
+    .join('')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export interface ShareholderColumnIndices {
+  nameColIdx: number;
+  typeColIdx: number;
+  classColIdx: number;
+  sharesHeldColIdx: number;
+  percentColIdx: number;
+}
+
+/**
+ * Detects column indices from a table's header cells.
+ * Returns null if the table does not match the shareholder table schema.
+ */
+export function identifyShareholderColumns(headerCells: string[]): ShareholderColumnIndices | null {
+  let nameColIdx = -1;
+  let typeColIdx = -1;
+  let classColIdx = -1;
+  let sharesHeldColIdx = -1;
+  let percentColIdx = -1;
+
+  headerCells.forEach((rawCell, idx) => {
+    const cell = rawCell.toLowerCase().replace(/[^a-z0-9%]/g, ' ').trim();
+    if (/holder\s*name|shareholder|beneficial\s*holder|member\s*name|^holder$|^name$/i.test(cell)) {
+      nameColIdx = idx;
+    } else if (/holder\s*type|entity\s*\/?\s*person|^type$|classification/i.test(cell)) {
+      typeColIdx = idx;
+    } else if (/share\s*class|^class$|category|shares\s*type/i.test(cell)) {
+      classColIdx = idx;
+    } else if (/shares\s*held|number\s*of\s*shares|quantity|^shares$|nominal/i.test(cell)) {
+      sharesHeldColIdx = idx;
+    } else if (/percentage|share\s*%|^%|equity\s*stake|holding/i.test(cell)) {
+      percentColIdx = idx;
+    }
+  });
+
+  // A valid shareholder table MUST have at least a holder name column AND (percentage OR share class OR shares held)
+  if (nameColIdx === -1 && percentColIdx === -1) {
+    return null;
+  }
+
+  // Fallback if name is at col 0 and another column indicates a shareholder table
+  if (nameColIdx === -1 && headerCells.length >= 2) {
+    const anyHolder = headerCells.some((c) => /holder|owner|member/i.test(c));
+    if (anyHolder) nameColIdx = 0;
+  }
+
+  if (nameColIdx === -1 || (percentColIdx === -1 && classColIdx === -1 && sharesHeldColIdx === -1)) {
+    return null;
+  }
+
+  return {
+    nameColIdx,
+    typeColIdx,
+    classColIdx,
+    sharesHeldColIdx,
+    percentColIdx
+  };
+}
+
+/**
+ * Parses Document AI document (tables and form fields) into structured shareholder rows.
+ * Enforces:
+ * 1. Only extracts from genuine shareholder TABLE with matching headers.
+ * 2. Never extracts metadata fields (registration number, in response to, purpose).
+ * 3. Fallback to genuine holder form fields only if no clean table is found.
+ * 4. Ensures no row has an empty Holder Name.
+ */
+export function parseDocumentAiDocument(doc: any): ExtractedShareholderRow[] {
+  if (!doc) return [];
+  const fullText = doc.text || '';
+  const rows: ExtractedShareholderRow[] = [];
+
+  if (doc.pages && Array.isArray(doc.pages)) {
+    for (const page of doc.pages) {
+      if (page.tables && Array.isArray(page.tables)) {
+        for (const table of page.tables) {
+          let headerCells: string[] = [];
+          let bodyRows: any[] = table.bodyRows || [];
+
+          if (table.headerRows && table.headerRows.length > 0) {
+            headerCells = (table.headerRows[0].cells || []).map((c: any) =>
+              getTextFromAnchor(c.layout?.textAnchor, fullText)
+            );
+          } else if (bodyRows.length > 0) {
+            // Check if first body row contains headers
+            const firstRowCells = (bodyRows[0].cells || []).map((c: any) =>
+              getTextFromAnchor(c.layout?.textAnchor, fullText)
+            );
+            const cols = identifyShareholderColumns(firstRowCells);
+            if (cols) {
+              headerCells = firstRowCells;
+              bodyRows = bodyRows.slice(1);
+            }
+          }
+
+          const cols = identifyShareholderColumns(headerCells);
+          if (!cols) {
+            // Not a shareholder table (e.g. metadata table with Registration number / purpose)
+            continue;
+          }
+
+          for (const r of bodyRows) {
+            const cells = (r.cells || []).map((c: any) =>
+              getTextFromAnchor(c.layout?.textAnchor, fullText)
+            );
+
+            const rawName = cols.nameColIdx >= 0 ? cells[cols.nameColIdx] : '';
+            const holderName = String(rawName || '').replace(/[`'"<>]/g, '').trim();
+
+            // Validate holder name: cannot be empty, cannot be unrelated metadata, cannot be table header text
+            if (!holderName || holderName.length < 2 || isUnrelatedMetadata(holderName)) {
+              continue;
+            }
+            if (/^(holder\s*name|shareholder|beneficial\s*holder)$/i.test(holderName)) {
+              continue;
+            }
+
+            // Extract percentage
+            let shareValue = 0;
+            if (cols.percentColIdx >= 0 && cells[cols.percentColIdx]) {
+              const pctText = cells[cols.percentColIdx];
+              const match = pctText.match(/(\d+(?:\.\d+)?)/);
+              if (match) shareValue = parseFloat(match[1]);
+            }
+
+            // If percentage was not found at percentColIdx, scan other numeric cells
+            if (shareValue === 0) {
+              for (let i = 0; i < cells.length; i++) {
+                if (i === cols.nameColIdx || i === cols.typeColIdx || i === cols.classColIdx) continue;
+                const match = cells[i].match(/(\d+(?:\.\d+)?)\s*%/);
+                if (match) {
+                  shareValue = parseFloat(match[1]);
+                  break;
+                }
+              }
+            }
+
+            // Extract share class
+            const shareClass = cols.classColIdx >= 0 && cells[cols.classColIdx]
+              ? cells[cols.classColIdx]
+              : 'Ordinary Shares';
+
+            // Extract holder type
+            let holderType: 'person' | 'entity' = 'person';
+            if (cols.typeColIdx >= 0 && cells[cols.typeColIdx]) {
+              const typeText = cells[cols.typeColIdx].toLowerCase();
+              if (typeText.includes('entity') || typeText.includes('company') || typeText.includes('corp')) {
+                holderType = 'entity';
+              } else if (typeText.includes('person') || typeText.includes('natural')) {
+                holderType = 'person';
+              } else {
+                holderType = /ltd|inc|llc|holdings|corp|sa|gmbh/i.test(holderName) ? 'entity' : 'person';
+              }
+            } else {
+              holderType = /ltd|inc|llc|holdings|corp|sa|gmbh/i.test(holderName) ? 'entity' : 'person';
+            }
+
+            if (holderName && (shareValue > 0 || shareClass)) {
+              rows.push(
+                normalizeExtractedRow({
+                  id: `doc-row-${rows.length + 1}`,
+                  holderName,
+                  holderType,
+                  shareKind: 'exact',
+                  shareExact: shareValue,
+                  shareClass,
+                  asOfDate: new Date().toISOString().slice(0, 10),
+                  sourcePage: page.pageNumber || 1,
+                  confidence: 0.96,
+                  fieldConfidences: {
+                    holderName: 0.98,
+                    share: 0.95,
+                    shareClass: 0.92,
+                    asOfDate: 0.90
+                  }
+                }, rows.length)
+              );
+            }
+          }
+        }
+      }
+
+      // If no rows were extracted from tables, check genuine holder form fields (Requirement 3)
+      if (rows.length === 0 && page.formFields && Array.isArray(page.formFields)) {
+        let currentHolderName = '';
+        let currentShareValue = 0;
+        let currentShareClass = 'Ordinary Shares';
+
+        for (const field of page.formFields) {
+          const fieldKey = getTextFromAnchor(field.fieldName?.textAnchor, fullText);
+          const fieldValue = getTextFromAnchor(field.fieldValue?.textAnchor, fullText);
+
+          // Strictly skip unrelated metadata fields
+          if (isUnrelatedMetadata(fieldKey) || isUnrelatedMetadata(fieldValue)) {
+            continue;
+          }
+
+          // Check if field is genuinely holder-related
+          if (/^(beneficial\s*holder|shareholder(\s*name)?|holder(\s*name)?|member(\s*name)?|equitable\s*owner)$/i.test(fieldKey)) {
+            if (fieldValue && !isUnrelatedMetadata(fieldValue)) {
+              currentHolderName = fieldValue;
+            }
+          } else if (/^(share\s*percentage|percentage(\s*held)?|equity\s*stake|holding\s*%|share\s*%)$/i.test(fieldKey)) {
+            const m = fieldValue.match(/(\d+(?:\.\d+)?)/);
+            if (m) currentShareValue = parseFloat(m[1]);
+          } else if (/^(share\s*class|class\s*of\s*shares)$/i.test(fieldKey)) {
+            if (fieldValue) currentShareClass = fieldValue;
+          }
+        }
+
+        if (currentHolderName && !isUnrelatedMetadata(currentHolderName)) {
+          rows.push(
+            normalizeExtractedRow({
+              id: `doc-row-${rows.length + 1}`,
+              holderName: currentHolderName,
+              holderType: /ltd|inc|llc|holdings|corp|sa|gmbh/i.test(currentHolderName) ? 'entity' : 'person',
+              shareKind: 'exact',
+              shareExact: currentShareValue,
+              shareClass: currentShareClass,
+              asOfDate: new Date().toISOString().slice(0, 10),
+              sourcePage: page.pageNumber || 1,
+              confidence: 0.90,
+              fieldConfidences: {
+                holderName: 0.92,
+                share: 0.88,
+                shareClass: 0.85,
+                asOfDate: 0.80
+              }
+            }, 0)
+          );
+        }
+      }
+    }
+  }
+
+  return rows;
+}
+
+/**
  * PRODUCTION ADAPTER
  * Connects to Google Cloud Storage (EVIDENCE_BUCKET) and Google Cloud Document AI (Form Parser).
  * Uploads evidence to Cloud Storage and invokes Document AI endpoint.
@@ -446,62 +731,10 @@ export class ProductionDocumentAiAdapter implements IDocumentAiAdapter {
           }
         }
       });
-
       // 4. Parse Document AI tables and form fields
       const doc = docAiRes.data?.document;
-      const rows: ExtractedShareholderRow[] = [];
+      const normalizedRows = parseDocumentAiDocument(doc);
 
-      // Extract from Document AI document pages / tables
-      if (doc?.pages) {
-        for (const page of doc.pages) {
-          if (page.tables) {
-            for (const table of page.tables) {
-              const bodyRows = table.bodyRows || [];
-              for (const r of bodyRows) {
-                const cells = r.cells || [];
-                const cellTexts = cells.map((c: any) => {
-                  const segments = c.layout?.textAnchor?.textSegments || [];
-                  return segments.map((s: any) => {
-                    const start = parseInt(s.startIndex || '0', 10);
-                    const end = parseInt(s.endIndex || '0', 10);
-                    return (doc.text || '').substring(start, end).trim();
-                  }).join(' ');
-                });
-
-                if (cellTexts.length >= 2) {
-                  const nameText = cellTexts[0];
-                  const shareText = cellTexts[1];
-                  const numericMatch = shareText.match(/(\d+(?:\.\d+)?)/);
-                  const shareValue = numericMatch ? parseFloat(numericMatch[1]) : 0;
-                  if (nameText && shareValue > 0) {
-                    rows.push(
-                      normalizeExtractedRow({
-                        id: `doc-row-${rows.length + 1}`,
-                        holderName: nameText,
-                        holderType: /ltd|inc|llc|holdings|corp|sa|gmbh/i.test(nameText) ? 'entity' : 'person',
-                        shareKind: 'exact',
-                        shareExact: shareValue,
-                        shareClass: cellTexts[2] || 'Ordinary Shares',
-                        asOfDate: new Date().toISOString().slice(0, 10),
-                        sourcePage: 1,
-                        confidence: 0.95,
-                        fieldConfidences: {
-                          holderName: 0.96,
-                          share: 0.95,
-                          shareClass: 0.9,
-                          asOfDate: 0.88
-                        }
-                      }, rows.length)
-                    );
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-
-      const normalizedRows = rows.map((r, idx) => normalizeExtractedRow(r, idx));
 
       return {
         extractionId,

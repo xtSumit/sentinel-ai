@@ -17,6 +17,7 @@ export interface SanctionsEntry {
 export interface SanctionsLookupQuery {
   name: string;
   country?: string;
+  aliases?: string[] | string;
 }
 
 export interface ISanctionsAdapter {

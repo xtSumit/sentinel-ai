@@ -67,6 +67,7 @@ export interface InterestDetail {
   source: string;
   asOfDate: string;
   confidence: number; // 0..1
+  shareClass?: string;
 }
 
 export type PartyType = 'entity' | 'person' | 'unspecified';

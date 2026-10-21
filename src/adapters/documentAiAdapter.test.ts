@@ -15,7 +15,8 @@ import {
   PreviewDocumentAiAdapter,
   ProductionDocumentAiAdapter,
   normalizeExtractedRow,
-  assertNoUndefined
+  assertNoUndefined,
+  parseDocumentAiDocument
 } from './documentAiAdapter.js';
 import { resolveBeneficialOwnership } from '../engine/uboEngine.js';
 import bodsSeed from '../data/bods-seed.json' with { type: 'json' };
@@ -306,5 +307,122 @@ describe('Phase 5: Document Intake & File Signature Security', () => {
     assert.equal(extractionRecord.extractedRows[1].shareExact, null);
     assert.equal(extractionRecord.extractedRows[1].shareMin, 20);
     assert.equal(extractionRecord.extractedRows[1].shareMax, 40);
+  });
+
+  test('TestCase 12: Actual Document AI Form Parser response extraction filters out metadata and maps exact table rows', () => {
+    const documentAiRawPayload = {
+      text: `STATUTORY COMPLIANCE FILING SCHEDULE · REGISTRY ARCHIVE
+AUTHENTICATED CORPORATE SECRETARIAL EXTRACT
+BVI Company No: VG-BVICN-2019440
+In response to: 2026-09-28
+Purpose: Statutory compliance filing
+
+STATUTORY REGISTER OF BENEFICIAL MEMBERS & EQUITABLE OWNERS
+Holder name\tHolder type\tShare class\tShares held\tPercentage
+Arthur Kensington Pryce\tNatural Person\tClass A Ordinary Voting Shares\t65,000\t65.0%
+Rosamund Ashford Gifford\tNatural Person\tClass B Ordinary Non-Voting Shares\t35,000\t35.0%
+
+SECRETARIAL ATTESTATION & STAMP
+Filing Reference: BVI-NOM-2026-9812-VERIFIED`,
+      pages: [
+        {
+          pageNumber: 1,
+          formFields: [
+            {
+              fieldName: { textAnchor: { content: 'BVI Company No:' } },
+              fieldValue: { textAnchor: { content: 'VG-BVICN-2019440' } }
+            },
+            {
+              fieldName: { textAnchor: { content: 'In response to:' } },
+              fieldValue: { textAnchor: { content: '2026-09-28' } }
+            },
+            {
+              fieldName: { textAnchor: { content: 'Purpose:' } },
+              fieldValue: { textAnchor: { content: 'Statutory compliance filing' } }
+            }
+          ],
+          tables: [
+            {
+              // Metadata table detected by Document AI Form Parser
+              headerRows: [],
+              bodyRows: [
+                {
+                  cells: [
+                    { layout: { textAnchor: { content: 'BVI Company No' } } },
+                    { layout: { textAnchor: { content: 'VG-BVICN-2019440' } } }
+                  ]
+                },
+                {
+                  cells: [
+                    { layout: { textAnchor: { content: 'In response to' } } },
+                    { layout: { textAnchor: { content: '2026-09-28' } } }
+                  ]
+                },
+                {
+                  cells: [
+                    { layout: { textAnchor: { content: 'Purpose' } } },
+                    { layout: { textAnchor: { content: 'Statutory compliance filing' } } }
+                  ]
+                }
+              ]
+            },
+            {
+              // Actual Shareholder Table
+              headerRows: [
+                {
+                  cells: [
+                    { layout: { textAnchor: { content: 'Holder name' } } },
+                    { layout: { textAnchor: { content: 'Holder type' } } },
+                    { layout: { textAnchor: { content: 'Share class' } } },
+                    { layout: { textAnchor: { content: 'Shares held' } } },
+                    { layout: { textAnchor: { content: 'Percentage' } } }
+                  ]
+                }
+              ],
+              bodyRows: [
+                {
+                  cells: [
+                    { layout: { textAnchor: { content: 'Arthur Kensington Pryce' } } },
+                    { layout: { textAnchor: { content: 'Natural Person' } } },
+                    { layout: { textAnchor: { content: 'Class A Ordinary Voting Shares' } } },
+                    { layout: { textAnchor: { content: '65,000' } } },
+                    { layout: { textAnchor: { content: '65.0%' } } }
+                  ]
+                },
+                {
+                  cells: [
+                    { layout: { textAnchor: { content: 'Rosamund Ashford Gifford' } } },
+                    { layout: { textAnchor: { content: 'Natural Person' } } },
+                    { layout: { textAnchor: { content: 'Class B Ordinary Non-Voting Shares' } } },
+                    { layout: { textAnchor: { content: '35,000' } } },
+                    { layout: { textAnchor: { content: '35.0%' } } }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    };
+
+    const extractedRows = parseDocumentAiDocument(documentAiRawPayload);
+
+    // 1. Assert exactly 2 shareholder rows extracted from the actual table
+    assert.equal(extractedRows.length, 2, 'Should extract exactly 2 shareholder rows');
+
+    // 2. Assert no row has an empty or metadata holder name
+    extractedRows.forEach((row) => {
+      assert.ok(row.holderName && row.holderName.trim().length > 0, 'Holder Name must not be empty');
+      assert.doesNotMatch(row.holderName, /BVI Company No|In response to|Purpose|Registration/i, 'Holder Name must not contain metadata field labels');
+    });
+
+    // 3. Assert exact shareholder names, share classes, and percentages
+    assert.equal(extractedRows[0].holderName, 'Arthur Kensington Pryce');
+    assert.equal(extractedRows[0].shareExact, 65.0);
+    assert.equal(extractedRows[0].shareClass, 'Class A Ordinary Voting Shares');
+
+    assert.equal(extractedRows[1].holderName, 'Rosamund Ashford Gifford');
+    assert.equal(extractedRows[1].shareExact, 35.0);
+    assert.equal(extractedRows[1].shareClass, 'Class B Ordinary Non-Voting Shares');
   });
 });

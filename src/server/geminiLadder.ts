@@ -15,27 +15,27 @@
 import { GoogleGenAI } from '@google/genai';
 
 export const VERTEX_AI_MODEL_LADDER = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
   'gemini-3.8-flash',
-  'gemini-3.1-flash-lite'
+  'gemini-flash-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite'
 ] as const;
 
 export const GEMINI_API_MODEL_LADDER = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
   'gemini-3.8-flash',
-  'gemini-3.1-flash-lite'
+  'gemini-flash-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite'
 ] as const;
 
 export const MODEL_LADDER = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
   'gemini-3.8-flash',
-  'gemini-3.1-flash-lite'
+  'gemini-flash-latest',
+  'gemini-3.1-flash-lite',
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite'
 ] as const;
 
 export type GeminiFlashModel = (typeof MODEL_LADDER)[number];

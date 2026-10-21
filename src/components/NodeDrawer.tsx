@@ -21,6 +21,7 @@ interface NodeDrawerProps {
   onOpenDossier?: (person: BodsPerson) => void;
   screenedPersonIds?: Set<string>;
   initiallyRequestDocuments?: boolean;
+  requestDocsTimestamp?: number;
   onConfirmExtraction?: (data: {
     gapId: string;
     extractionId: string;
@@ -38,14 +39,17 @@ export const NodeDrawer: React.FC<NodeDrawerProps> = ({
   onOpenDossier,
   screenedPersonIds,
   initiallyRequestDocuments,
+  requestDocsTimestamp,
   onConfirmExtraction
 }) => {
   const { user, profile } = useAuth();
   const [isRequestingDocs, setIsRequestingDocs] = useState<boolean>(Boolean(initiallyRequestDocuments));
 
   useEffect(() => {
-    setIsRequestingDocs(Boolean(initiallyRequestDocuments));
-  }, [initiallyRequestDocuments, selected?.record.id]);
+    if (initiallyRequestDocuments || requestDocsTimestamp) {
+      setIsRequestingDocs(true);
+    }
+  }, [initiallyRequestDocuments, requestDocsTimestamp, selected?.record?.id]);
 
   if (!selected) return null;
 
@@ -70,7 +74,9 @@ export const NodeDrawer: React.FC<NodeDrawerProps> = ({
 
   return (
     <div
-      className="absolute top-0 right-0 bottom-0 w-[372px] z-30 flex flex-col anim-drawer select-text"
+      className={`absolute top-0 right-0 bottom-0 z-30 flex flex-col anim-drawer select-text transition-all duration-300 ${
+        isRequestingDocs ? 'w-[580px] max-w-[95vw]' : 'w-[372px]'
+      }`}
       style={{
         backgroundColor: 'var(--card)',
         borderLeft: '1px solid var(--line)',
@@ -476,6 +482,7 @@ export const NodeDrawer: React.FC<NodeDrawerProps> = ({
                         {getNodeLabel(rel.interestedPartyId)}
                       </div>
                       <div className="text-[10px] font-mono-code mt-0.5" style={{ color: 'var(--ink3)' }}>
+                        {primary?.shareClass ? <span className="font-semibold text-[var(--ink)]">{primary.shareClass} · </span> : null}
                         {primary?.type.replace(/_/g, ' ')} · {primary?.asOfDate}
                       </div>
                     </div>
@@ -518,6 +525,7 @@ export const NodeDrawer: React.FC<NodeDrawerProps> = ({
                         {getNodeLabel(rel.subjectId)}
                       </div>
                       <div className="text-[10px] font-mono-code mt-0.5" style={{ color: 'var(--ink3)' }}>
+                        {primary?.shareClass ? <span className="font-semibold text-[var(--ink)]">{primary.shareClass} · </span> : null}
                         {primary?.type.replace(/_/g, ' ')} · conf {(primary?.confidence ?? 1) * 100}%
                       </div>
                     </div>
